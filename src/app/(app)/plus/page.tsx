@@ -14,7 +14,7 @@ export default async function MorePage() {
   const entries: Entry[] = [
     { href: "/equipe", label: "Mon équipe", hint: "Sous-comptes et autorisations", icon: "badge", ready: true, show: can(session, "equipe.gerer") },
     { href: "/admin", label: "Espace gestionnaire", hint: "Valider et gérer les comptes", icon: "shield", ready: true, show: session.isPlatformAdmin },
-    { href: "#", label: "Réglages de l'entreprise", hint: "TVA, numérotation, mise en page des documents", icon: "building", ready: false, show: can(session, "reglages.gerer") },
+    { href: "/reglages", label: "Réglages de l'entreprise", hint: "TVA, numérotation, mise en page des documents", icon: "settings", ready: true, show: can(session, "reglages.gerer") },
     { href: "#", label: "Fluides frigorigènes", hint: "Registre et bouteilles", icon: "drop", ready: false, show: true },
   ];
   return (

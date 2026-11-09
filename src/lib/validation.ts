@@ -6,6 +6,8 @@ import { z } from "zod";
 import { cleanPhone, isValidSiret } from "./text";
 import { parseCoordinates } from "./geo";
 import { isPermission } from "./permissions";
+import { isValidFrenchVatNumber, isValidIban, LEGAL_FORMS } from "./company";
+import { parseRate } from "./tax";
 
 z.config(z.locales.fr());
 
@@ -213,6 +215,126 @@ export const adminStatusInput = z.object({
 export const PLANS = ["pilote", "essai", "payant", "gratuit"] as const;
 export const adminPlanInput = z.object({ orgId: uuidField, plan: z.enum(PLANS) });
 export const adminNoteInput = z.object({ orgId: uuidField, note: requiredText("Note", 2000) });
+
+// ─── Réglages de l'entreprise (lot B) ──────────────────────────────────────
+
+const optionalUpper = (max: number) =>
+  z
+    .string()
+    .nullish()
+    .transform((v) => (v ? v.replace(/\s/g, "").toUpperCase() : null))
+    .refine((v) => v === null || v.length <= max, { error: `${max} caractères maximum` });
+
+export const identityInput = z.object({
+  name: requiredText("Raison sociale", 150),
+  tradeName: optionalText(150),
+  legalForm: z
+    .string()
+    .nullish()
+    .transform((v) => (v ? v : null))
+    .refine((v) => v === null || LEGAL_FORMS.some((f) => f.key === v), { error: "Forme juridique inconnue" }),
+  siret: optionalSiret,
+  shareCapital: z
+    .string()
+    .trim()
+    .nullish()
+    .transform((v) => (v ? v.replace(/\s|€/g, "").replace(",", ".") : null))
+    .refine((v) => v === null || (/^\d+(\.\d{1,2})?$/.test(v) && Number(v) <= 1e10), { error: "Montant invalide (ex. 5000)" }),
+  registration: optionalText(120),
+  vatNumber: optionalUpper(20).refine((v) => v === null || !v.startsWith("FR") || isValidFrenchVatNumber(v), {
+    error: "N° de TVA invalide : FR + 2 chiffres de clé + SIREN",
+  }),
+  nafCode: optionalUpper(6).refine((v) => v === null || /^\d{2}\.?\d{2}[A-Z]$/.test(v), { error: "Code NAF invalide (ex. 43.22B)" }),
+  website: optionalText(200),
+  email: optionalEmail,
+  phone: optionalPhone,
+  addressLine1: optionalText(200),
+  addressLine2: optionalText(200),
+  postalCode: optionalPostalCode,
+  city: optionalText(100),
+  fluidCapacityCertificate: optionalText(100),
+  insurerName: optionalText(150),
+  insurerAddress: optionalText(300),
+  insurancePolicy: optionalText(80),
+  insuranceCoverage: optionalText(200),
+}).transform(({ shareCapital, ...rest }) => ({
+  ...rest,
+  shareCapitalCents: shareCapital === null ? null : Math.round(Number(shareCapital) * 100),
+}));
+export type IdentityInput = z.output<typeof identityInput>;
+
+export const taxSettingsInput = z.object({
+  vatRegime: z.enum(["reel", "franchise"]),
+  vatOnDebits: checkbox,
+});
+export type TaxSettingsInput = z.output<typeof taxSettingsInput>;
+
+export const taxRateInput = z
+  .object({
+    id: uuidField.optional().or(z.literal("").transform(() => undefined)),
+    label: requiredText("Libellé", 80),
+    rate: z.string({ error: "Taux obligatoire" }).trim().min(1, { error: "Taux obligatoire" }),
+    kind: z.enum(["normal", "reduit", "particulier", "exonere", "autoliquidation"]),
+    mention: optionalText(300),
+    requiresAttestation: checkbox,
+  })
+  .transform(({ rate, ...rest }, ctx) => {
+    const rateBp = parseRate(rate);
+    if (rateBp === null) {
+      ctx.addIssue({ code: "custom", path: ["rate"], message: "Taux invalide (ex. 8,5)" });
+      return z.NEVER;
+    }
+    return { ...rest, rateBp };
+  });
+export type TaxRateInput = z.output<typeof taxRateInput>;
+
+export const seriesInput = z.object({
+  docType: z.enum(["devis", "facture", "avoir", "acompte", "commande"]),
+  pattern: z.string().trim(),
+  padding: z.coerce.number({ error: "Nombre invalide" }).int(),
+  reset: z.enum(["annuel", "jamais"]),
+});
+export type SeriesInput = z.output<typeof seriesInput>;
+
+const PAYMENT_METHODS = ["virement", "cheque", "especes", "carte", "prelevement"] as const;
+
+export const paymentInput = z.object({
+  paymentTermsDays: z.coerce
+    .number({ error: "Nombre de jours invalide" })
+    .int()
+    .min(0, { error: "0 jour minimum (paiement à réception)" })
+    .max(60, { error: "60 jours maximum à compter de la facture (art. L441-10 du code de commerce)" }),
+  latePenaltyText: requiredText("Taux des pénalités de retard", 500),
+  earlyPaymentDiscountText: requiredText("Conditions d'escompte", 300),
+  quoteValidityDays: z.coerce.number({ error: "Nombre de jours invalide" }).int().min(1).max(365),
+  depositPercent: z.coerce.number({ error: "Pourcentage invalide" }).int().min(0).max(100),
+  paymentMethods: z.array(z.enum(PAYMENT_METHODS)).default([]),
+  bankName: optionalText(100),
+  iban: optionalUpper(34).refine((v) => v === null || isValidIban(v), { error: "IBAN invalide (vérifiez les chiffres)" }),
+  bic: optionalUpper(11).refine((v) => v === null || /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(v), { error: "BIC invalide (8 ou 11 caractères)" }),
+  cgv: optionalText(30000),
+  quoteFooter: optionalText(1000),
+  invoiceFooter: optionalText(1000),
+});
+export type PaymentInput = z.output<typeof paymentInput>;
+export const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], string> = {
+  virement: "Virement",
+  cheque: "Chèque",
+  especes: "Espèces",
+  carte: "Carte bancaire",
+  prelevement: "Prélèvement",
+};
+
+const hexColor = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, { error: "Couleur invalide" }).transform((v) => v.toLowerCase());
+
+export const brandingInput = z.object({
+  primaryColor: hexColor,
+  accentColor: hexColor,
+  template: z.enum(["classique", "moderne", "epure"]),
+  logoPosition: z.enum(["gauche", "centre", "droite"]),
+  font: z.enum(["helvetica", "times"]),
+});
+export type BrandingInput = z.output<typeof brandingInput>;
 
 /** Transforme les erreurs zod en { champ: message } pour les formulaires. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

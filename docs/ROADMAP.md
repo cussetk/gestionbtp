@@ -6,14 +6,14 @@ Chaque lot est testé (tests automatisés + parcours au format téléphone) puis
 | Lot | Contenu | Dépend de | État |
 |---|---|---|---|
 | 0 | Socle multi-entreprises, clients et sites | — | ✅ en ligne |
-| A | Localisation fiable des sites · sous-comptes et autorisations · espace gestionnaire (validation des comptes) | 0 | ✅ |
-| B | **Réglages de l'entreprise** : identité légale, assurance décennale, TVA (taux par produit, DOM), numérotation, mise en page des documents (logo, couleurs, dispositions), CGV, délais des opportunités | A | à faire |
+| A | Localisation fiable des sites · sous-comptes et autorisations · espace gestionnaire (validation des comptes) · interface PC + téléphone | 0 | ✅ en ligne |
+| B | **Réglages de l'entreprise** : identité légale (pré-remplie depuis le SIRET), assurance décennale, contrôle de conformité, TVA (régime, débits, taux par zone), numérotation légale, mise en page (logo, couleurs, 3 modèles, aperçu PDF réel), paiement et CGV | A | ✅ en ligne |
 | C | **Fournisseurs et catalogue** : produits / services / main-d'œuvre, prix d'achat, coefficient de marge, TVA par article, suivi en stock et n° de série, historique des prix ; import de grille fournisseur par photo/PDF (IA + écran de validation) | B | à faire |
 | D | **Devis et factures** conformes : mentions obligatoires forcées, numérotation chronologique continue, acomptes, avoirs, signature du devis, mention TVA réduite, PDF à la charte du client, export Factur-X | B, C | à faire |
 | E | **Achats et stock** : bons de commande générés en un clic depuis un devis (un par fournisseur), factures d'achat, mouvements de stock, numéros de série suivis de l'entrée au client, ventes par produit | C, D | à faire |
 | F | **V1 terrain** : parc d'équipements + QR code, interventions (planning, rapport, photos, signature, PDF verrouillé), CERFA 15497*04, registre des fluides et alertes d'étanchéité | A, E (n° de série) | à faire |
 | G | **Chantiers et rentabilité** : coûts réels (factures d'achat, main-d'œuvre, frais saisis à la main) contre le vendu, marge en temps réel | D, E, F | à faire |
-| H | **Entretien et opportunités** : contrats d'entretien, visites planifiées, facturation récurrente ; opportunités automatiques (ex. installation facturée il y a 11 mois) avec message WhatsApp pré-rempli en 1–2 clics ; délai réglable ; relances e-mail (impayés, entretiens) | D, F | à faire |
+| H | **Entretien et opportunités** : contrats d'entretien, visites planifiées, facturation récurrente ; opportunités automatiques (ex. installation facturée il y a 11 mois) avec message WhatsApp pré-rempli en 1–2 clics ; délai réglable dans les réglages ; relances e-mail (impayés, entretiens) | D, F | à faire |
 | I | **Pilotage** : tableau de bord personnalisable (glisser les tuiles), devis émis / à valider / à facturer, CRM (pipeline des devis), trésorerie | D, E, G, H | à faire |
 | J | **Pré-comptabilité et espace comptable** : journaux ventes/achats, rapprochement des règlements, export FEC et CSV, accès dédié pour le comptable (droit « Accéder à l'espace comptable ») | D, E | à faire |
 | K | **Facturation électronique** via une plateforme agréée (obligation d'émission des TPE au 1er septembre 2027), lecture de plaque signalétique par photo, aide au diagnostic par code erreur | D, F | à faire |

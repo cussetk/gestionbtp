@@ -47,7 +47,7 @@ export const NAV: NavSection[] = [
     items: [
       { href: "/comptabilite", label: "Comptabilité", icon: "chart", ready: false, permission: "compta.acces" },
       { href: "/equipe", label: "Mon équipe", icon: "badge", ready: true, permission: "equipe.gerer" },
-      { href: "/reglages", label: "Réglages", icon: "settings", ready: false, permission: "reglages.gerer" },
+      { href: "/reglages", label: "Réglages", icon: "settings", ready: true, permission: "reglages.gerer" },
     ],
   },
 ];

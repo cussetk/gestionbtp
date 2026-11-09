@@ -48,7 +48,7 @@ export const PERMISSION_GROUPS = [
     label: "Administration",
     permissions: [
       { key: "compta.acces", label: "Accéder à l'espace comptable et aux exports", ready: false },
-      { key: "reglages.gerer", label: "Modifier les réglages (TVA, numérotation, mise en page…)", ready: false },
+      { key: "reglages.gerer", label: "Modifier les réglages (TVA, numérotation, mise en page…)", ready: true },
       { key: "equipe.gerer", label: "Inviter des membres et gérer leurs droits", ready: true },
     ],
   },

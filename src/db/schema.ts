@@ -13,6 +13,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  customType,
   integer,
   check,
   doublePrecision,
@@ -265,3 +266,131 @@ export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;
 export type Site = typeof sites.$inferSelect;
 export type NewSite = typeof sites.$inferInsert;
+
+// ─── Lot B : réglages de l'entreprise ──────────────────────────────────────
+
+const bytea = customType<{ data: Buffer; driverData: Buffer | Uint8Array }>({
+  dataType: () => "bytea",
+  fromDriver: (v) => (Buffer.isBuffer(v) ? v : Buffer.from(v)),
+});
+
+export const vatRegime = pgEnum("vat_regime", ["reel", "franchise"]);
+export const docTemplate = pgEnum("doc_template", ["classique", "moderne", "epure"]);
+export const logoPosition = pgEnum("logo_position", ["gauche", "centre", "droite"]);
+export const docFont = pgEnum("doc_font", ["helvetica", "times"]);
+
+/** Réglages légaux, commerciaux et de mise en page (une ligne par entreprise). */
+export const companySettings = pgTable("company_settings", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  // Identité légale (le nom, le SIRET et l'adresse du siège sont dans organizations)
+  legalForm: text("legal_form"),
+  tradeName: text("trade_name"),
+  shareCapitalCents: bigint("share_capital_cents", { mode: "number" }),
+  /** Immatriculation : « RCS Pointe-à-Pitre 123 456 789 » ou « RM 971 123 456 789 ». */
+  registration: text("registration"),
+  vatNumber: text("vat_number"),
+  nafCode: text("naf_code"),
+  website: text("website"),
+  // TVA
+  vatRegime: vatRegime("vat_regime").notNull().default("reel"),
+  /** Option pour le paiement de la TVA d'après les débits (mention obligatoire si choisie). */
+  vatOnDebits: boolean("vat_on_debits").notNull().default(false),
+  // Assurance professionnelle (décennale) — mention obligatoire pour les artisans du bâtiment
+  insurerName: text("insurer_name"),
+  insurerAddress: text("insurer_address"),
+  insurancePolicy: text("insurance_policy"),
+  insuranceCoverage: text("insurance_coverage"),
+  // Paiement
+  paymentTermsDays: integer("payment_terms_days").notNull().default(30),
+  latePenaltyText: text("late_penalty_text"),
+  earlyPaymentDiscountText: text("early_payment_discount_text"),
+  quoteValidityDays: integer("quote_validity_days").notNull().default(30),
+  depositPercent: integer("deposit_percent").notNull().default(30),
+  paymentMethods: text("payment_methods").array().notNull().default(sql`'{virement,cheque}'::text[]`),
+  bankName: text("bank_name"),
+  iban: text("iban"),
+  bic: text("bic"),
+  // Textes
+  cgv: text("cgv"),
+  quoteFooter: text("quote_footer"),
+  invoiceFooter: text("invoice_footer"),
+  // Mise en page
+  primaryColor: text("primary_color").notNull().default("#0b74a8"),
+  accentColor: text("accent_color").notNull().default("#13202b"),
+  template: docTemplate("template").notNull().default("moderne"),
+  logoPosition: logoPosition("logo_position").notNull().default("gauche"),
+  font: docFont("font").notNull().default("helvetica"),
+  ...syncColumns,
+});
+
+export const companyLogos = pgTable("company_logos", {
+  orgId: uuid("org_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  mime: text("mime").notNull(),
+  data: bytea("data").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  sha256: text("sha256").notNull(),
+  ...syncColumns,
+});
+
+export const taxKind = pgEnum("tax_kind", ["normal", "reduit", "particulier", "exonere", "autoliquidation"]);
+
+/** Taux de TVA proposés sur les lignes de devis/factures (modifiables par le propriétaire). */
+export const taxRates = pgTable(
+  "tax_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    label: text("label").notNull(),
+    /** Taux en points de base : 2000 = 20 %, 850 = 8,5 %, 210 = 2,1 %. */
+    rateBp: integer("rate_bp").notNull(),
+    kind: taxKind("kind").notNull().default("normal"),
+    /** Mention imprimée sur le document quand ce taux est utilisé. */
+    mention: text("mention"),
+    /** Le client doit signer une attestation (taux réduits travaux dans les logements). */
+    requiresAttestation: boolean("requires_attestation").notNull().default(false),
+    isDefault: boolean("is_default").notNull().default(false),
+    position: integer("position").notNull().default(0),
+    active: boolean("active").notNull().default(true),
+    ...syncColumns,
+  },
+  (t) => [
+    index("tax_rates_org_idx").on(t.orgId, t.position),
+    check("tax_rates_rate_ck", sql`${t.rateBp} between 0 and 10000`),
+  ],
+);
+
+export const docType = pgEnum("doc_type", ["devis", "facture", "avoir", "acompte", "commande"]);
+export const numberReset = pgEnum("number_reset", ["annuel", "jamais"]);
+
+/** Numérotation des documents : une séquence continue par type de document. */
+export const numberSeries = pgTable(
+  "number_series",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    docType: docType("doc_type").notNull(),
+    /** Ex. « FAC-{AAAA}-{N} ». Jetons : {AAAA}, {AA}, {MM}, {N}. */
+    pattern: text("pattern").notNull(),
+    padding: integer("padding").notNull().default(4),
+    reset: numberReset("reset").notNull().default("annuel"),
+    lastNumber: integer("last_number").notNull().default(0),
+    lastYear: integer("last_year"),
+    /** Posé au premier numéro attribué : le format ne peut plus changer ensuite. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    ...syncColumns,
+  },
+  (t) => [uniqueIndex("number_series_org_type_uq").on(t.orgId, t.docType)],
+);
+
+export type CompanySettings = typeof companySettings.$inferSelect;
+export type TaxRate = typeof taxRates.$inferSelect;
+export type NumberSeries = typeof numberSeries.$inferSelect;

@@ -46,4 +46,5 @@ tests/           tests automatisés
 - [x] Socle : inscription d'une entreprise, connexion, sessions, isolation par entreprise
 - [x] Module 1 : clients et sites d'intervention
 - [x] Lot A : localisation fiable des sites, sous-comptes et autorisations, espace gestionnaire (`/admin`)
+- [x] Lot B : réglages de l'entreprise (identité, TVA, numérotation, mise en page, paiement) et modèle PDF
 - [ ] Suite : voir [docs/ROADMAP.md](docs/ROADMAP.md)
