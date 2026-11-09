@@ -13,6 +13,8 @@ npm test           # tests : comptes, clients/sites, isolation entre entreprises
 
 ## Brancher Neon et Vercel
 
+Projet Neon de production : `gestionbtp` (id `icy-butterfly-48639426`), région Francfort, base `gestionbtp`. Migrations 0000 à 0002 appliquées.
+
 1. Créer un projet Neon en région **AWS Europe Central 1 (Francfort)**.
 2. Copier `.env.example` en `.env` et y mettre la chaîne de connexion Neon.
 3. `npm run db:migrate`
