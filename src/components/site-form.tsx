@@ -1,40 +1,60 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { saveSiteAction, type FormState } from "@/app/(app)/clients/actions";
+import { formatCoordinates, parseCoordinates } from "@/lib/geo";
 import { Field, FormError, Icon, TextArea, TextInput, buttonStyles, cx } from "./ui";
 import { SubmitButton } from "./submit-button";
+import { geoErrorMessage, locateDevice } from "./geolocate";
 
 type Values = Record<string, string | number | null | undefined>;
+
+const SOURCE_LABEL: Record<string, string> = {
+  gps: "relevée sur place",
+  adresse: "calculée depuis l'adresse",
+  manuel: "saisie à la main",
+};
 
 export function SiteForm({ mode, initial }: { mode: "create" | "update"; initial: Values }) {
   const [state, action] = useActionState<FormState, FormData>(saveSiteAction, {});
   const v: Values = state.values ?? initial;
   const e = state.errors ?? {};
   const val = (k: string) => (v[k] ?? "").toString();
-  const lat = useRef<HTMLInputElement>(null);
-  const lng = useRef<HTMLInputElement>(null);
-  const [geo, setGeo] = useState<string | null>(v.latitude ? "Position enregistrée" : null);
 
-  function locate() {
-    if (!navigator.geolocation) return setGeo("Localisation indisponible sur cet appareil");
-    setGeo("Recherche de la position…");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (lat.current) lat.current.value = pos.coords.latitude.toFixed(6);
-        if (lng.current) lng.current.value = pos.coords.longitude.toFixed(6);
-        setGeo(`Position relevée (précision ${Math.round(pos.coords.accuracy)} m)`);
-      },
-      () => setGeo("Position refusée ou indisponible"),
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
+  const initialCoords = state.values
+    ? (state.values.coordinates ?? "")
+    : formatCoordinates(initial.latitude as number | null, initial.longitude as number | null);
+  const [coords, setCoords] = useState<string>(initialCoords);
+  const [source, setSource] = useState<string>(val("geoSource"));
+  const [accuracy, setAccuracy] = useState<string>(val("geoAccuracyM"));
+  const [status, setStatus] = useState<{ tone: "info" | "ok" | "error"; text: string } | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  async function locate() {
+    setLocating(true);
+    setStatus({ tone: "info", text: "Recherche de votre position…" });
+    try {
+      const fix = await locateDevice();
+      setCoords(formatCoordinates(fix.lat, fix.lng));
+      setSource("gps");
+      setAccuracy(String(Math.round(fix.accuracy)));
+      setStatus({ tone: "ok", text: `Position relevée (précision ${Math.round(fix.accuracy)} m). Enregistrez pour la garder.` });
+    } catch (err) {
+      setStatus({ tone: "error", text: geoErrorMessage(err) });
+    } finally {
+      setLocating(false);
+    }
   }
+
+  const parsed = parseCoordinates(coords);
 
   return (
     <form action={action} className="space-y-4" noValidate>
       <input type="hidden" name="mode" value={mode} />
       <input type="hidden" name="id" value={val("id")} />
       <input type="hidden" name="clientId" value={val("clientId")} />
+      <input type="hidden" name="geoSource" value={source} />
+      <input type="hidden" name="geoAccuracyM" value={accuracy} />
       <FormError message={e._form ?? e.clientId} />
 
       <Field label="Nom du site *" name="label" error={e.label} hint="Ex. Domicile, Magasin Jarry, Bureaux 2e étage">
@@ -55,20 +75,49 @@ export function SiteForm({ mode, initial }: { mode: "create" | "update"; initial
         </Field>
       </div>
 
-      <div className="rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <button type="button" onClick={locate} className={cx(buttonStyles.secondary, "w-full")}>
+      <div className="space-y-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+        <p className="text-sm font-semibold text-slate-700">Position du site</p>
+        <button type="button" onClick={locate} disabled={locating} className={cx(buttonStyles.secondary, "w-full")}>
           <Icon name="locate" />
-          Je suis sur place : relever la position GPS
+          {locating ? "Recherche…" : "Je suis sur place : relever ma position"}
         </button>
-        {geo && <p className="mt-2 text-center text-xs text-slate-600">{geo}</p>}
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <Field label="Latitude" name="latitude" error={e.latitude}>
-            <TextInput ref={lat} name="latitude" inputMode="decimal" defaultValue={val("latitude")} error={e.latitude} />
-          </Field>
-          <Field label="Longitude" name="longitude" error={e.longitude}>
-            <TextInput ref={lng} name="longitude" inputMode="decimal" defaultValue={val("longitude")} error={e.longitude} />
-          </Field>
-        </div>
+        {status && (
+          <p
+            role="status"
+            className={cx(
+              "rounded-lg px-3 py-2 text-sm",
+              status.tone === "error" && "bg-red-50 text-red-700",
+              status.tone === "ok" && "bg-emerald-50 text-emerald-800",
+              status.tone === "info" && "text-slate-600",
+            )}
+          >
+            {status.text}
+          </p>
+        )}
+        <Field
+          label="Coordonnées ou lien Google Maps"
+          name="coordinates"
+          error={e.coordinates}
+          hint={
+            parsed
+              ? `Position ${SOURCE_LABEL[source] ?? "saisie à la main"} : ${formatCoordinates(parsed.lat, parsed.lng)}`
+              : "Laissez vide : la position sera calculée depuis l'adresse. Vous pouvez coller un lien Maps ou une position WhatsApp."
+          }
+        >
+          <TextInput
+            name="coordinates"
+            value={coords}
+            onChange={(ev) => {
+              setCoords(ev.target.value);
+              setSource("manuel");
+              setAccuracy("");
+            }}
+            placeholder="16.2412, -61.5331"
+            inputMode="text"
+            autoComplete="off"
+            error={e.coordinates}
+          />
+        </Field>
       </div>
 
       <Field label="Accès" name="accessNotes" error={e.accessNotes} hint="Code portail, étage, emplacement des groupes extérieurs, animaux…">

@@ -2,14 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/session";
-import { clientInput, fieldErrors, formToObject, siteInput } from "@/lib/validation";
+import { requireActiveSession, toCtx } from "@/lib/session";
+import { ForbiddenError } from "@/lib/permissions";
+import { clientInput, fieldErrors, formToObject, siteInput, sitePositionInput } from "@/lib/validation";
 import {
   archiveClient,
   archiveSite,
   createClient,
   createSite,
   NotFoundError,
+  setSitePosition,
   updateClient,
   updateSite,
   type Ctx,
@@ -18,12 +20,11 @@ import {
 export type FormState = { errors?: Record<string, string>; values?: Record<string, string> };
 
 async function ctx(): Promise<Ctx> {
-  const s = await requireSession();
-  return { orgId: s.orgId, userId: s.userId };
+  return toCtx(await requireActiveSession());
 }
 
 function failure(err: unknown, values: Record<string, string>): FormState {
-  if (err instanceof NotFoundError) return { errors: { _form: err.message }, values };
+  if (err instanceof NotFoundError || err instanceof ForbiddenError) return { errors: { _form: err.message }, values };
   throw err;
 }
 
@@ -81,4 +82,23 @@ export async function archiveSiteAction(form: FormData) {
   const { clientId } = await archiveSite(c, String(form.get("id")));
   revalidatePath(`/clients/${clientId}`);
   redirect(`/clients/${clientId}`);
+}
+
+export async function saveSitePositionAction(input: {
+  siteId: string;
+  lat: number;
+  lng: number;
+  accuracy?: number | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const c = await ctx();
+  const parsed = sitePositionInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Position invalide" };
+  try {
+    await setSitePosition(c, parsed.data.siteId, parsed.data);
+  } catch (err) {
+    if (err instanceof NotFoundError || err instanceof ForbiddenError) return { ok: false, error: err.message };
+    throw err;
+  }
+  revalidatePath(`/sites/${parsed.data.siteId}`);
+  return { ok: true };
 }

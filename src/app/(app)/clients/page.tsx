@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Form from "next/form";
 import Link from "next/link";
-import { requireSession } from "@/lib/session";
+import { requirePermission, toCtx } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { countClients, listClients } from "@/server/clients";
 import { formatPhone } from "@/lib/text";
 import { EmptyState, Fab, Icon, PageHeader } from "@/components/ui";
@@ -9,8 +10,8 @@ import { EmptyState, Fab, Icon, PageHeader } from "@/components/ui";
 export const metadata: Metadata = { title: "Clients" };
 
 export default async function ClientsPage({ searchParams }: PageProps<"/clients">) {
-  const session = await requireSession();
-  const ctx = { orgId: session.orgId, userId: session.userId };
+  const session = await requirePermission("clients.voir");
+  const ctx = toCtx(session);
   const raw = (await searchParams).q;
   const q = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
   const [items, total] = await Promise.all([listClients(ctx, { q, limit: 100 }), countClients(ctx)]);
@@ -67,7 +68,7 @@ export default async function ClientsPage({ searchParams }: PageProps<"/clients"
         </ul>
       )}
 
-      <Fab href="/clients/nouveau" label="Client" />
+      {can(session, "clients.modifier") && <Fab href="/clients/nouveau" label="Client" />}
     </>
   );
 }

@@ -27,6 +27,14 @@ const paths = {
   locate: "M12 2v3M12 19v3M2 12h3M19 12h3M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
   logout: "M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10",
   archive: "M3 5h18v4H3zM5 9v10h14V9M10 13h4",
+  menu: "M4 7h16M4 12h16M4 17h16",
+  shield: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+  copy: "M8 8h11v11H8zM5 16V5h11",
+  whatsapp: "M4 20l1.3-3.8A8 8 0 1 1 8 19zM9 9.5c0 3 2.5 5.5 5.5 5.5l1.2-1.4-2-1-1 .8a4 4 0 0 1-2.1-2.1l.8-1-1-2z",
+  check: "M5 12.5l4.5 4.5L19 7",
+  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
+  ban: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 5.6l12.8 12.8",
 } as const;
 
 export type IconName = keyof typeof paths;
@@ -112,6 +120,7 @@ export const buttonStyles = {
   secondary: cx(buttonBase, "bg-white text-ink ring-1 ring-slate-300 active:bg-slate-100"),
   danger: cx(buttonBase, "bg-white text-red-700 ring-1 ring-red-200 active:bg-red-50"),
   ghost: cx(buttonBase, "text-brand-700 active:bg-brand-50"),
+  whatsapp: cx(buttonBase, "bg-[#1f8f4e] text-white shadow-sm active:bg-[#18733e]"),
 };
 
 export function ButtonLink({

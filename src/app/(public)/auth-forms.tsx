@@ -60,6 +60,9 @@ export function SignUpForm() {
           ))}
         </select>
       </Field>
+      <Field label="Téléphone" name="phone" error={e.phone} hint="Pour vous contacter lors de la validation de votre espace.">
+        <TextInput name="phone" type="tel" autoComplete="tel" inputMode="tel" defaultValue={v.phone} error={e.phone} />
+      </Field>
       <Field label="E-mail" name="email" error={e.email}>
         <TextInput name="email" type="email" autoComplete="email" inputMode="email" required defaultValue={v.email} error={e.email} />
       </Field>

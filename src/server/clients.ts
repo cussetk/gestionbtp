@@ -9,8 +9,12 @@ import { withTenant } from "@/db";
 import { clients, sites, type Client, type Site } from "@/db/schema";
 import { escapeLike, normalizeSearch } from "@/lib/text";
 import type { ClientInput, SiteInput } from "@/lib/validation";
+import { assertCan, type Permission } from "@/lib/permissions";
+import { parseCoordinates } from "@/lib/geo";
+import { geocodeAddress } from "./geocode";
 
-export type Ctx = { orgId: string; userId: string };
+/** Contexte d'appel : entreprise, utilisateur et ses droits effectifs. */
+export type Ctx = { orgId: string; userId: string; permissions: readonly Permission[] };
 
 export class NotFoundError extends Error {
   constructor(what = "Élément introuvable") {
@@ -68,8 +72,6 @@ function siteValues(input: SiteInput) {
     addressLine2: input.addressLine2,
     postalCode: input.postalCode,
     city: input.city,
-    latitude: input.latitude,
-    longitude: input.longitude,
     accessNotes: input.accessNotes,
     contactName: input.contactName,
     contactPhone: input.contactPhone,
@@ -93,6 +95,7 @@ export async function listClients(
   ctx: Ctx,
   opts: { q?: string; limit?: number; offset?: number } = {},
 ): Promise<ClientListItem[]> {
+  assertCan(ctx, "clients.voir");
   const limit = Math.min(opts.limit ?? 50, 200);
   const offset = opts.offset ?? 0;
   const terms = normalizeSearch(opts.q)
@@ -135,6 +138,7 @@ export async function listClients(
 }
 
 export async function countClients(ctx: Ctx): Promise<number> {
+  assertCan(ctx, "clients.voir");
   return withTenant(ctx.orgId, async (tx) => {
     const [row] = await tx.select({ n: count() }).from(clients).where(isNull(clients.deletedAt));
     return row.n;
@@ -142,6 +146,7 @@ export async function countClients(ctx: Ctx): Promise<number> {
 }
 
 export async function getClient(ctx: Ctx, id: string): Promise<{ client: Client; sites: Site[] }> {
+  assertCan(ctx, "clients.voir");
   return withTenant(ctx.orgId, async (tx) => {
     const [client] = await tx
       .select()
@@ -159,6 +164,12 @@ export async function getClient(ctx: Ctx, id: string): Promise<{ client: Client;
 
 /** Crée un client (et, si demandé, son premier site à l'adresse de facturation). Idempotent sur l'id. */
 export async function createClient(ctx: Ctx, input: ClientInput): Promise<{ id: string; siteId: string | null }> {
+  assertCan(ctx, "clients.modifier");
+  // Position du site calculée avant la transaction (appel réseau).
+  const geo =
+    input.createSiteFromAddress && input.addressLine1 && input.postalCode && input.city
+      ? await geocodeAddress({ addressLine1: input.addressLine1, postalCode: input.postalCode, city: input.city })
+      : null;
   return withTenant(ctx.orgId, async (tx) => {
     const id = input.id ?? crypto.randomUUID();
     const inserted = await tx
@@ -184,8 +195,9 @@ export async function createClient(ctx: Ctx, input: ClientInput): Promise<{ id: 
         addressLine2: input.addressLine2,
         postalCode: input.postalCode,
         city: input.city,
-        latitude: null,
-        longitude: null,
+        coordinates: null,
+        geoSource: null,
+        geoAccuracyM: null,
         accessNotes: null,
         contactName: null,
         contactPhone: null,
@@ -197,6 +209,7 @@ export async function createClient(ctx: Ctx, input: ClientInput): Promise<{ id: 
         clientId: id,
         createdBy: ctx.userId,
         ...siteValues(siteInputValue),
+        ...(geo ? { latitude: geo.lat, longitude: geo.lng, geoSource: "adresse", geoUpdatedAt: new Date() } : {}),
       });
     }
     return { id, siteId };
@@ -204,6 +217,7 @@ export async function createClient(ctx: Ctx, input: ClientInput): Promise<{ id: 
 }
 
 export async function updateClient(ctx: Ctx, id: string, input: ClientInput): Promise<void> {
+  assertCan(ctx, "clients.modifier");
   await withTenant(ctx.orgId, async (tx) => {
     const updated = await tx
       .update(clients)
@@ -216,6 +230,7 @@ export async function updateClient(ctx: Ctx, id: string, input: ClientInput): Pr
 
 /** Archive un client et ses sites (suppression douce, réversible par le support). */
 export async function archiveClient(ctx: Ctx, id: string): Promise<void> {
+  assertCan(ctx, "clients.archiver");
   await withTenant(ctx.orgId, async (tx) => {
     const now = new Date();
     const updated = await tx
@@ -234,6 +249,7 @@ export async function archiveClient(ctx: Ctx, id: string): Promise<void> {
 // ─── Sites ─────────────────────────────────────────────────────────────────
 
 export async function getSite(ctx: Ctx, id: string): Promise<{ site: Site; client: Client }> {
+  assertCan(ctx, "clients.voir");
   return withTenant(ctx.orgId, async (tx) => {
     const [row] = await tx
       .select({ site: sites, client: clients })
@@ -245,7 +261,48 @@ export async function getSite(ctx: Ctx, id: string): Promise<{ site: Site; clien
   });
 }
 
+/**
+ * Position à enregistrer :
+ *  - coordonnées du formulaire (relevées par GPS, collées, ou déjà présentes) → conservées
+ *    avec leur origine, sauf si elles venaient de l'ancienne adresse et que l'adresse a changé ;
+ *  - sinon (champ vide ou position périmée) → calculée depuis l'adresse ;
+ *  - si le calcul échoue → position vide.
+ */
+async function resolvePosition(
+  input: SiteInput,
+  previous?: Pick<Site, "addressLine1" | "postalCode" | "city">,
+): Promise<
+  | { latitude: number; longitude: number; geoSource: string; geoAccuracyM: number | null; geoUpdatedAt: Date }
+  | { latitude: null; longitude: null; geoSource: null; geoAccuracyM: null; geoUpdatedAt: null }
+> {
+  const typed = parseCoordinates(input.coordinates);
+  const addressChanged =
+    !previous ||
+    previous.addressLine1 !== input.addressLine1 ||
+    previous.postalCode !== input.postalCode ||
+    previous.city !== input.city;
+  const stale = input.geoSource === "adresse" && addressChanged;
+
+  if (typed && !stale) {
+    const source = input.geoSource ?? "manuel";
+    return {
+      latitude: typed.lat,
+      longitude: typed.lng,
+      geoSource: source,
+      geoAccuracyM: source === "gps" ? (input.geoAccuracyM ?? null) : null,
+      geoUpdatedAt: new Date(),
+    };
+  }
+  const geo = await geocodeAddress(input);
+  if (geo) {
+    return { latitude: geo.lat, longitude: geo.lng, geoSource: "adresse", geoAccuracyM: null, geoUpdatedAt: new Date() };
+  }
+  return { latitude: null, longitude: null, geoSource: null, geoAccuracyM: null, geoUpdatedAt: null };
+}
+
 export async function createSite(ctx: Ctx, input: SiteInput): Promise<{ id: string }> {
+  assertCan(ctx, "clients.modifier");
+  const position = await resolvePosition(input);
   return withTenant(ctx.orgId, async (tx) => {
     const [client] = await tx
       .select({ id: clients.id })
@@ -256,7 +313,14 @@ export async function createSite(ctx: Ctx, input: SiteInput): Promise<{ id: stri
     const id = input.id ?? crypto.randomUUID();
     await tx
       .insert(sites)
-      .values({ id, orgId: ctx.orgId, clientId: input.clientId, createdBy: ctx.userId, ...siteValues(input) })
+      .values({
+        id,
+        orgId: ctx.orgId,
+        clientId: input.clientId,
+        createdBy: ctx.userId,
+        ...siteValues(input),
+        ...position,
+      })
       .onConflictDoNothing({ target: sites.id });
     const [check] = await tx.select({ id: sites.id }).from(sites).where(eq(sites.id, id));
     if (!check) throw new NotFoundError("Site introuvable");
@@ -265,17 +329,52 @@ export async function createSite(ctx: Ctx, input: SiteInput): Promise<{ id: stri
 }
 
 export async function updateSite(ctx: Ctx, id: string, input: SiteInput): Promise<void> {
+  assertCan(ctx, "clients.modifier");
+  const previous = await withTenant(ctx.orgId, async (tx) => {
+    const [row] = await tx
+      .select({ addressLine1: sites.addressLine1, postalCode: sites.postalCode, city: sites.city })
+      .from(sites)
+      .where(and(eq(sites.id, id), eq(sites.clientId, input.clientId), isNull(sites.deletedAt)));
+    return row;
+  });
+  if (!previous) throw new NotFoundError("Site introuvable");
+  const position = await resolvePosition(input, previous);
+
   await withTenant(ctx.orgId, async (tx) => {
     const updated = await tx
       .update(sites)
-      .set(siteValues(input))
+      .set({ ...siteValues(input), ...position })
       .where(and(eq(sites.id, id), eq(sites.clientId, input.clientId), isNull(sites.deletedAt)))
       .returning({ id: sites.id });
     if (updated.length === 0) throw new NotFoundError("Site introuvable");
   });
 }
 
+/** Enregistre la position GPS relevée sur place depuis la fiche du site (un seul bouton). */
+export async function setSitePosition(
+  ctx: Ctx,
+  siteId: string,
+  pos: { lat: number; lng: number; accuracy?: number | null },
+): Promise<void> {
+  assertCan(ctx, "clients.modifier");
+  await withTenant(ctx.orgId, async (tx) => {
+    const updated = await tx
+      .update(sites)
+      .set({
+        latitude: Math.round(pos.lat * 1e6) / 1e6,
+        longitude: Math.round(pos.lng * 1e6) / 1e6,
+        geoSource: "gps",
+        geoAccuracyM: pos.accuracy != null ? Math.round(pos.accuracy) : null,
+        geoUpdatedAt: new Date(),
+      })
+      .where(and(eq(sites.id, siteId), isNull(sites.deletedAt)))
+      .returning({ id: sites.id });
+    if (updated.length === 0) throw new NotFoundError("Site introuvable");
+  });
+}
+
 export async function archiveSite(ctx: Ctx, id: string): Promise<{ clientId: string }> {
+  assertCan(ctx, "clients.archiver");
   return withTenant(ctx.orgId, async (tx) => {
     const [updated] = await tx
       .update(sites)

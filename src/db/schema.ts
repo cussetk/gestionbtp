@@ -12,6 +12,8 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  boolean,
+  integer,
   check,
   doublePrecision,
   foreignKey,
@@ -44,7 +46,11 @@ const syncColumns = {
 
 // ─── Socle : entreprises, utilisateurs, sessions ───────────────────────────
 
-export const memberRole = pgEnum("member_role", ["gerant", "technicien"]);
+/** proprietaire : tous les droits, ne peut pas être modifié par un membre. membre : droits accordés un à un. */
+export const memberRole = pgEnum("member_role", ["proprietaire", "membre"]);
+
+/** Cycle de vie d'un espace : validé par le gestionnaire de la plateforme avant utilisation. */
+export const orgStatus = pgEnum("org_status", ["en_attente", "active", "suspendue"]);
 
 export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -61,6 +67,12 @@ export const organizations = pgTable("organizations", {
   timezone: text("timezone").notNull().default("Europe/Paris"),
   /** N° d'attestation de capacité (manipulation des fluides) — requis sur le CERFA 15497. */
   fluidCapacityCertificate: text("fluid_capacity_certificate"),
+  status: orgStatus("status").notNull().default("en_attente"),
+  statusChangedAt: timestamp("status_changed_at", { withTimezone: true }),
+  /** Motif de suspension, visible par le client. */
+  statusReason: text("status_reason"),
+  /** Formule commerciale (pilote, essai, payant…), gérée par le gestionnaire. */
+  plan: text("plan").notNull().default("pilote"),
   ...timestamps,
 });
 
@@ -72,6 +84,10 @@ export const users = pgTable(
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     fullName: text("full_name").notNull(),
+    phone: text("phone"),
+    /** Gestionnaire de la plateforme (accès à l'espace de validation des comptes). */
+    isPlatformAdmin: boolean("is_platform_admin").notNull().default(false),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [uniqueIndex("users_email_uq").on(t.email)],
@@ -86,10 +102,52 @@ export const memberships = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    role: memberRole("role").notNull().default("technicien"),
+    role: memberRole("role").notNull().default("membre"),
+    /** Fonction affichée : « Technicien », « Secrétaire »… */
+    title: text("title"),
+    /** Autorisations accordées (voir src/lib/permissions.ts). Ignoré pour le propriétaire. */
+    permissions: text("permissions").array().notNull().default(sql`'{}'::text[]`),
+    /** Un membre désactivé ne peut plus se connecter ; son historique est conservé. */
+    active: boolean("active").notNull().default(true),
     ...timestamps,
   },
   (t) => [primaryKey({ columns: [t.orgId, t.userId] })],
+);
+
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    fullName: text("full_name").notNull(),
+    title: text("title"),
+    permissions: text("permissions").array().notNull().default(sql`'{}'::text[]`),
+    /** Empreinte SHA-256 du jeton du lien : le lien lui-même n'est jamais stocké. */
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("invitations_token_uq").on(t.tokenHash), index("invitations_org_idx").on(t.orgId)],
+);
+
+/** Journal et notes du gestionnaire de la plateforme (traçabilité ; jamais visible par les clients). */
+export const adminEvents = pgTable(
+  "admin_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "set null" }),
+    adminUserId: uuid("admin_user_id").references(() => users.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    detail: text("detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("admin_events_org_idx").on(t.orgId, t.createdAt)],
 );
 
 export const sessions = pgTable(
@@ -173,6 +231,11 @@ export const sites = pgTable(
     country: text("country").notNull().default("FR"),
     latitude: doublePrecision("latitude"),
     longitude: doublePrecision("longitude"),
+    /** Origine de la position : gps (relevée sur place), adresse (calculée), manuel (collée). */
+    geoSource: text("geo_source"),
+    /** Précision du relevé GPS en mètres. */
+    geoAccuracyM: integer("geo_accuracy_m"),
+    geoUpdatedAt: timestamp("geo_updated_at", { withTimezone: true }),
     /** Code portail, étage, chien, emplacement des unités extérieures… */
     accessNotes: text("access_notes"),
     contactName: text("contact_name"),
@@ -195,6 +258,8 @@ export const sites = pgTable(
 );
 
 export type Organization = typeof organizations.$inferSelect;
+export type Membership = typeof memberships.$inferSelect;
+export type Invitation = typeof invitations.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type NewClient = typeof clients.$inferInsert;

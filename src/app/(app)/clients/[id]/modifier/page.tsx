@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireSession } from "@/lib/session";
+import { requirePermission, toCtx } from "@/lib/session";
 import { getClient } from "@/server/clients";
 import { loadOr404 } from "@/lib/page-helpers";
 import { PageHeader } from "@/components/ui";
@@ -8,9 +8,9 @@ import { ClientForm } from "@/components/client-form";
 export const metadata: Metadata = { title: "Modifier le client" };
 
 export default async function EditClientPage({ params }: PageProps<"/clients/[id]/modifier">) {
-  const session = await requireSession();
+  const session = await requirePermission("clients.modifier");
   const { id } = await params;
-  const { client } = await loadOr404(id, () => getClient(session, id));
+  const { client } = await loadOr404(id, () => getClient(toCtx(session), id));
   return (
     <>
       <PageHeader title="Modifier le client" subtitle={client.displayName} back={`/clients/${client.id}`} />

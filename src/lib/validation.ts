@@ -4,6 +4,8 @@
  */
 import { z } from "zod";
 import { cleanPhone, isValidSiret } from "./text";
+import { parseCoordinates } from "./geo";
+import { isPermission } from "./permissions";
 
 z.config(z.locales.fr());
 
@@ -57,15 +59,6 @@ export const optionalPostalCode = z
   .nullish()
   .transform((v) => (v ? v : null))
   .refine((v) => v === null || /^\d{5}$/.test(v), { error: "Code postal à 5 chiffres" });
-
-const optionalCoordinate = (min: number, max: number) =>
-  z
-    .union([z.string(), z.number()])
-    .nullish()
-    .transform((v) => (v === null || v === undefined || v === "" ? null : Number(String(v).replace(",", "."))))
-    .refine((v) => v === null || (Number.isFinite(v) && v >= min && v <= max), {
-      error: "Coordonnée invalide",
-    });
 
 const checkbox = z
   .union([z.literal("on"), z.literal("true"), z.literal("false"), z.boolean()])
@@ -125,8 +118,19 @@ export const siteInput = z.object({
   addressLine2: optionalText(200),
   postalCode,
   city: requiredText("Ville", 100),
-  latitude: optionalCoordinate(-90, 90),
-  longitude: optionalCoordinate(-180, 180),
+  /** Position : texte « lat, lng » ou lien Maps/WhatsApp ; vide = calculée depuis l'adresse. */
+  coordinates: z
+    .string()
+    .trim()
+    .max(2000)
+    .nullish()
+    .transform((v) => (v ? v : null))
+    .refine((v) => v === null || parseCoordinates(v) !== null, {
+      error: "Position non reconnue : collez « 16.24, -61.53 » ou un lien Google Maps",
+    }),
+  /** Origine des coordonnées du formulaire : gps (bouton), manuel (collées), adresse (déjà calculées). */
+  geoSource: z.enum(["gps", "manuel", "adresse"]).nullish().catch(null),
+  geoAccuracyM: z.coerce.number().int().min(0).max(100000).nullish().catch(null),
   accessNotes: optionalText(1000),
   contactName: optionalText(100),
   contactPhone: optionalPhone,
@@ -134,11 +138,52 @@ export const siteInput = z.object({
 });
 export type SiteInput = z.output<typeof siteInput>;
 
+/** Position relevée sur place depuis la fiche du site. */
+export const sitePositionInput = z.object({
+  siteId: uuidField,
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+  accuracy: z.coerce.number().min(0).max(100000).nullish().catch(null),
+});
+
+// ─── Équipe ────────────────────────────────────────────────────────────────
+
+const permissionList = z
+  .array(z.string())
+  .default([])
+  .transform((list) => [...new Set(list.filter(isPermission))]);
+
+export const invitationInput = z.object({
+  fullName: requiredText("Nom", 100),
+  email: z.string().trim().toLowerCase().pipe(z.email({ error: "Adresse e-mail invalide" })),
+  title: optionalText(60),
+  permissions: permissionList,
+});
+export type InvitationInput = z.output<typeof invitationInput>;
+
+export const memberUpdateInput = z.object({
+  userId: uuidField,
+  title: optionalText(60),
+  permissions: permissionList,
+});
+export type MemberUpdateInput = z.output<typeof memberUpdateInput>;
+
+export const acceptInvitationInput = z.object({
+  token: z.string().min(20).max(200),
+  fullName: requiredText("Votre nom", 100),
+  phone: optionalPhone,
+  password: z
+    .string()
+    .min(10, { error: "10 caractères minimum" })
+    .max(200, { error: "200 caractères maximum" }),
+});
+
 // ─── Comptes ───────────────────────────────────────────────────────────────
 
 export const signUpInput = z.object({
   orgName: requiredText("Nom de l'entreprise", 150),
   fullName: requiredText("Votre nom", 100),
+  phone: optionalPhone,
   email: z.string().trim().toLowerCase().pipe(z.email({ error: "Adresse e-mail invalide" })),
   password: z
     .string()
@@ -155,6 +200,20 @@ export const signInInput = z.object({
   password: z.string().min(1, { error: "Mot de passe obligatoire" }),
 });
 
+export type AcceptInvitationInput = z.output<typeof acceptInvitationInput>;
+
+// ─── Gestionnaire de la plateforme ─────────────────────────────────────────
+
+export const adminStatusInput = z.object({
+  orgId: uuidField,
+  status: z.enum(["en_attente", "active", "suspendue"]),
+  reason: optionalText(500),
+});
+
+export const PLANS = ["pilote", "essai", "payant", "gratuit"] as const;
+export const adminPlanInput = z.object({ orgId: uuidField, plan: z.enum(PLANS) });
+export const adminNoteInput = z.object({ orgId: uuidField, note: requiredText("Note", 2000) });
+
 /** Transforme les erreurs zod en { champ: message } pour les formulaires. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {
   const out: Record<string, string> = {};
@@ -170,4 +229,9 @@ export function formToObject(form: FormData): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of form.entries()) if (typeof v === "string") out[k] = v;
   return out;
+}
+
+/** Valeurs multiples d'un champ (cases à cocher). */
+export function formList(form: FormData, name: string): string[] {
+  return form.getAll(name).filter((v): v is string => typeof v === "string");
 }

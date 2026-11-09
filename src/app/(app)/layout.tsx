@@ -1,9 +1,12 @@
-import { requireSession } from "@/lib/session";
+import Link from "next/link";
+import { requireActiveSession } from "@/lib/session";
 import { BottomNav } from "@/components/app-nav";
 import { SignOutButton } from "@/components/sign-out-button";
+import { Icon } from "@/components/ui";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  const session = await requireSession();
+  const session = await requireActiveSession();
+  const roleLabel = session.role === "proprietaire" ? "Propriétaire" : (session.title ?? "Membre");
   return (
     <>
       <header
@@ -14,9 +17,18 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold leading-tight">{session.orgName}</p>
             <p className="truncate text-xs text-white/75">
-              {session.fullName} · {session.role === "gerant" ? "Gérant" : "Technicien"}
+              {session.fullName} · {roleLabel}
             </p>
           </div>
+          {session.isPlatformAdmin && (
+            <Link
+              href="/admin"
+              aria-label="Espace gestionnaire"
+              className="grid size-11 place-items-center rounded-full text-white/90 active:bg-white/15"
+            >
+              <Icon name="shield" />
+            </Link>
+          )}
           <SignOutButton />
         </div>
       </header>

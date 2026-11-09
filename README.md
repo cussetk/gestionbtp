@@ -45,4 +45,5 @@ tests/           tests automatisés
 
 - [x] Socle : inscription d'une entreprise, connexion, sessions, isolation par entreprise
 - [x] Module 1 : clients et sites d'intervention
-- [ ] Module 2 : parc d'équipements
+- [x] Lot A : localisation fiable des sites, sous-comptes et autorisations, espace gestionnaire (`/admin`)
+- [ ] Suite : voir [docs/ROADMAP.md](docs/ROADMAP.md)

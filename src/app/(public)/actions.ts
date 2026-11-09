@@ -3,7 +3,8 @@
 import { redirect } from "next/navigation";
 import { AuthError, signIn, signOut, signUp } from "@/server/auth";
 import { clearSessionCookie, readSessionToken, setSessionCookie } from "@/lib/session";
-import { fieldErrors, formToObject, signInInput, signUpInput } from "@/lib/validation";
+import { acceptInvitationInput, fieldErrors, formToObject, signInInput, signUpInput } from "@/lib/validation";
+import { acceptInvitation } from "@/server/team";
 
 export type AuthState = { errors?: Record<string, string>; values?: Record<string, string> };
 
@@ -18,7 +19,7 @@ export async function signUpAction(_prev: AuthState, form: FormData): Promise<Au
     if (err instanceof AuthError) return { errors: { [err.field ?? "_form"]: err.message }, values: { ...values, password: "" } };
     throw err;
   }
-  redirect("/clients");
+  redirect("/en-attente");
 }
 
 export async function signInAction(_prev: AuthState, form: FormData): Promise<AuthState> {
@@ -32,7 +33,22 @@ export async function signInAction(_prev: AuthState, form: FormData): Promise<Au
     if (err instanceof AuthError) return { errors: { _form: err.message }, values: { email: values.email ?? "" } };
     throw err;
   }
-  redirect("/clients");
+  redirect("/");
+}
+
+export async function acceptInvitationAction(_prev: AuthState, form: FormData): Promise<AuthState> {
+  const values = formToObject(form);
+  const parsed = acceptInvitationInput.safeParse(values);
+  const keep = { fullName: values.fullName ?? "", phone: values.phone ?? "" };
+  if (!parsed.success) return { errors: fieldErrors(parsed.error), values: keep };
+  try {
+    const { token, expiresAt } = await acceptInvitation(parsed.data);
+    await setSessionCookie(token, expiresAt);
+  } catch (err) {
+    if (err instanceof AuthError) return { errors: { _form: err.message }, values: keep };
+    throw err;
+  }
+  redirect("/");
 }
 
 export async function signOutAction() {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { requireSession } from "@/lib/session";
+import { requirePermission, toCtx } from "@/lib/session";
+import { can } from "@/lib/permissions";
 import { getClient } from "@/server/clients";
 import { loadOr404, mapsUrl } from "@/lib/page-helpers";
 import { formatPhone } from "@/lib/text";
@@ -9,16 +10,17 @@ import { SubmitButton } from "@/components/submit-button";
 import { archiveClientAction } from "../actions";
 
 export async function generateMetadata({ params }: PageProps<"/clients/[id]">): Promise<Metadata> {
-  const session = await requireSession();
+  const session = await requirePermission("clients.voir");
   const { id } = await params;
-  const { client } = await loadOr404(id, () => getClient(session, id));
+  const { client } = await loadOr404(id, () => getClient(toCtx(session), id));
   return { title: client.displayName };
 }
 
 export default async function ClientPage({ params }: PageProps<"/clients/[id]">) {
-  const session = await requireSession();
+  const session = await requirePermission("clients.voir");
   const { id } = await params;
-  const { client, sites } = await loadOr404(id, () => getClient(session, id));
+  const { client, sites } = await loadOr404(id, () => getClient(toCtx(session), id));
+  const canEdit = can(session, "clients.modifier");
   const billing = [client.addressLine1, client.addressLine2, [client.postalCode, client.city].filter(Boolean).join(" ")]
     .filter(Boolean)
     .join(", ");
@@ -31,7 +33,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
         title={client.displayName}
         subtitle={client.type === "professionnel" ? `Professionnel${client.siret ? ` · SIRET ${client.siret}` : ""}` : "Particulier"}
         action={
-          <Link
+          canEdit && <Link
             href={`/clients/${client.id}/modifier`}
             aria-label="Modifier le client"
             className="grid size-11 shrink-0 place-items-center rounded-full text-brand-700 active:bg-brand-50"
@@ -70,7 +72,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
 
       <SectionTitle
         action={
-          <Link href={`/clients/${client.id}/sites/nouveau`} className="flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-brand-700">
+          canEdit && <Link href={`/clients/${client.id}/sites/nouveau`} className="flex min-h-11 items-center gap-1 px-2 text-sm font-semibold text-brand-700">
             <Icon name="plus" className="size-4" /> Ajouter
           </Link>
         }
@@ -108,10 +110,10 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
       <Card className="text-sm text-slate-500">Équipements, interventions, devis et factures de ce client.</Card>
 
       <div className="mt-8 flex flex-col gap-2">
-        <ButtonLink href={`/clients/${client.id}/modifier`} variant="secondary">
+        {canEdit && <ButtonLink href={`/clients/${client.id}/modifier`} variant="secondary">
           Modifier le client
-        </ButtonLink>
-        <form action={archiveClientAction}>
+        </ButtonLink>}
+        {can(session, "clients.archiver") && <form action={archiveClientAction}>
           <input type="hidden" name="id" value={client.id} />
           <SubmitButton
             variant="danger"
@@ -121,7 +123,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
           >
             <Icon name="archive" /> Archiver le client
           </SubmitButton>
-        </form>
+        </form>}
       </div>
     </>
   );

@@ -28,7 +28,7 @@ async function newCompany(name: string, email: string): Promise<Ctx> {
   );
   const ctx = await getSessionContext(token);
   if (!ctx) throw new Error("session manquante");
-  return { orgId: ctx.orgId, userId: ctx.userId };
+  return { orgId: ctx.orgId, userId: ctx.userId, permissions: ctx.permissions };
 }
 
 let froid: Ctx; // Froid Antilles (Guadeloupe)
@@ -90,7 +90,9 @@ describe("comptes", () => {
     const { token } = await signIn("GERANT@froid-antilles.fr", "motdepasse-solide");
     const ctx = await getSessionContext(token);
     expect(ctx?.orgName).toBe("Froid Antilles");
-    expect(ctx?.role).toBe("gerant");
+    expect(ctx?.role).toBe("proprietaire");
+    expect(ctx?.orgStatus).toBe("en_attente");
+    expect(ctx?.permissions).toContain("equipe.gerer");
     await expect(signIn("gerant@froid-antilles.fr", "mauvais")).rejects.toBeInstanceOf(AuthError);
     await expect(signIn("inconnu@exemple.fr", "motdepasse-solide")).rejects.toBeInstanceOf(AuthError);
   });
@@ -169,7 +171,7 @@ describe("clients et sites", () => {
     await updateSite(
       froid,
       s1.id,
-      site({ clientId: id, label: "Bâtiment A (chambres)", addressLine1: "Route de la plage", postalCode: "97190", city: "Le Gosier", latitude: "16,2050", longitude: "-61.4930" }),
+      site({ clientId: id, label: "Bâtiment A (chambres)", addressLine1: "Route de la plage", postalCode: "97190", city: "Le Gosier", coordinates: "16,2050 ; -61.4930" }),
     );
     const { site: updated } = await getSite(froid, s1.id);
     expect(updated.label).toBe("Bâtiment A (chambres)");

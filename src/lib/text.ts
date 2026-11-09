@@ -54,3 +54,33 @@ export function isValidSiret(siret: string): boolean {
 export function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
+
+/**
+ * Numéro au format international sans « + » (pour les liens WhatsApp wa.me).
+ * Gère les DOM : 0690/0691 et 0590 → 590 (Guadeloupe, St-Martin, St-Barth), 0696/0697 et 0596 → 596 (Martinique),
+ * 0694 et 0594 → 594 (Guyane), 0692/0693, 0262/0263 → 262 (La Réunion), 0639/0269 → 262 (Mayotte).
+ * Autres numéros commençant par 0 → 33 (métropole).
+ */
+export function toInternational(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const p = cleanPhone(phone);
+  if (p.startsWith("+")) return p.slice(1);
+  if (p.startsWith("00")) return p.slice(2);
+  if (!/^0\d{9}$/.test(p)) return null;
+  const national = p.slice(1);
+  const dom: [RegExp, string][] = [
+    [/^(690|691|590)/, "590"],
+    [/^(696|697|596)/, "596"],
+    [/^(694|594)/, "594"],
+    [/^(692|693|262|263|639|269)/, "262"],
+  ];
+  for (const [re, code] of dom) if (re.test(national)) return code + national;
+  return "33" + national;
+}
+
+/** Lien WhatsApp vers un numéro, avec message pré-rempli. */
+export function whatsappLink(phone: string | null | undefined, message?: string): string | null {
+  const intl = toInternational(phone);
+  if (!intl) return null;
+  return `https://wa.me/${intl}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
+}

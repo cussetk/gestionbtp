@@ -11,6 +11,7 @@ import { and, asc, eq, gt, lt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { memberships, organizations, sessions, users } from "@/db/schema";
 import type { SignUpInput } from "@/lib/validation";
+import { effectivePermissions, type Permission } from "@/lib/permissions";
 
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: object) => Promise<Buffer>;
 
@@ -41,18 +42,24 @@ export async function verifyPassword(password: string, stored: string): Promise<
 // pour ne pas révéler par le temps de réponse quels e-mails ont un compte.
 let dummyHash: Promise<string> | undefined;
 
-function hashToken(token: string): string {
+export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
 export type SessionContext = {
   userId: string;
   orgId: string;
-  role: "gerant" | "technicien";
+  role: "proprietaire" | "membre";
+  title: string | null;
+  /** Droits effectifs (tous pour le propriétaire). */
+  permissions: Permission[];
   fullName: string;
   email: string;
   orgName: string;
   orgTimezone: string;
+  orgStatus: "en_attente" | "active" | "suspendue";
+  orgStatusReason: string | null;
+  isPlatformAdmin: boolean;
 };
 
 export class AuthError extends Error {
@@ -64,15 +71,28 @@ export class AuthError extends Error {
   }
 }
 
-async function createSession(userId: string, orgId: string) {
+/** Amorçage : e-mails listés dans PLATFORM_ADMIN_EMAILS deviennent gestionnaires de la plateforme. */
+function isBootstrapAdmin(email: string): boolean {
+  return (process.env.PLATFORM_ADMIN_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+    .includes(email.toLowerCase());
+}
+
+export async function createSession(userId: string, orgId: string) {
   const db = await getDb();
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * DAY_MS);
   await db.insert(sessions).values({ tokenHash: hashToken(token), userId, orgId, expiresAt });
+  await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
   return { token, expiresAt };
 }
 
-/** Crée l'espace d'un nouveau climaticien et son compte gérant. */
+/**
+ * Crée l'espace d'un nouveau climaticien et son compte propriétaire.
+ * L'espace reste « en attente » jusqu'à sa validation par le gestionnaire de la plateforme.
+ */
 export async function signUp(input: SignUpInput) {
   const db = await getDb();
   const passwordHash = await hashPassword(input.password);
@@ -83,13 +103,19 @@ export async function signUp(input: SignUpInput) {
 
     const [org] = await tx
       .insert(organizations)
-      .values({ name: input.orgName, timezone: input.timezone })
+      .values({ name: input.orgName, timezone: input.timezone, status: "en_attente" })
       .returning({ id: organizations.id });
     const [user] = await tx
       .insert(users)
-      .values({ email: input.email, passwordHash, fullName: input.fullName })
+      .values({
+        email: input.email,
+        passwordHash,
+        fullName: input.fullName,
+        phone: input.phone,
+        isPlatformAdmin: isBootstrapAdmin(input.email),
+      })
       .returning({ id: users.id });
-    await tx.insert(memberships).values({ orgId: org.id, userId: user.id, role: "gerant" });
+    await tx.insert(memberships).values({ orgId: org.id, userId: user.id, role: "proprietaire" });
     return { userId: user.id, orgId: org.id };
   });
 
@@ -108,15 +134,20 @@ export async function signIn(email: string, password: string) {
   if (!(await verifyPassword(password, user.passwordHash))) {
     throw new AuthError("E-mail ou mot de passe incorrect");
   }
+  if (!user.isPlatformAdmin && isBootstrapAdmin(user.email)) {
+    await db.update(users).set({ isPlatformAdmin: true }).where(eq(users.id, user.id));
+  }
 
   // V1 : un utilisateur appartient à une entreprise. (Le choix d'entreprise viendra si besoin.)
   const [membership] = await db
     .select()
     .from(memberships)
-    .where(eq(memberships.userId, user.id))
+    .where(and(eq(memberships.userId, user.id), eq(memberships.active, true)))
     .orderBy(asc(memberships.createdAt))
     .limit(1);
-  if (!membership) throw new AuthError("Ce compte n'est rattaché à aucune entreprise");
+  if (!membership) {
+    throw new AuthError("Ce compte a été désactivé par votre entreprise. Contactez votre responsable.");
+  }
 
   return createSession(user.id, membership.orgId);
 }
@@ -133,16 +164,24 @@ export async function getSessionContext(token: string | undefined): Promise<Sess
       userId: users.id,
       orgId: organizations.id,
       role: memberships.role,
+      title: memberships.title,
+      granted: memberships.permissions,
       fullName: users.fullName,
       email: users.email,
+      isPlatformAdmin: users.isPlatformAdmin,
       orgName: organizations.name,
       orgTimezone: organizations.timezone,
+      orgStatus: organizations.status,
+      orgStatusReason: organizations.statusReason,
       expiresAt: sessions.expiresAt,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .innerJoin(organizations, eq(organizations.id, sessions.orgId))
-    .innerJoin(memberships, and(eq(memberships.userId, users.id), eq(memberships.orgId, organizations.id)))
+    .innerJoin(
+      memberships,
+      and(eq(memberships.userId, users.id), eq(memberships.orgId, organizations.id), eq(memberships.active, true)),
+    )
     .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, now)));
 
   if (!row) return null;
@@ -159,10 +198,15 @@ export async function getSessionContext(token: string | undefined): Promise<Sess
     userId: row.userId,
     orgId: row.orgId,
     role: row.role,
+    title: row.title,
+    permissions: effectivePermissions(row.role, row.granted),
     fullName: row.fullName,
     email: row.email,
     orgName: row.orgName,
     orgTimezone: row.orgTimezone,
+    orgStatus: row.orgStatus,
+    orgStatusReason: row.orgStatusReason,
+    isPlatformAdmin: row.isPlatformAdmin,
   };
 }
 
@@ -170,6 +214,12 @@ export async function signOut(token: string | undefined) {
   if (!token) return;
   const db = await getDb();
   await db.delete(sessions).where(eq(sessions.tokenHash, hashToken(token)));
+}
+
+/** Déconnecte toutes les sessions d'un utilisateur dans une entreprise (membre désactivé, droits retirés). */
+export async function revokeSessions(userId: string, orgId: string) {
+  const db = await getDb();
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), eq(sessions.orgId, orgId)));
 }
 
 /** Ménage : supprime les sessions expirées (à brancher sur une tâche planifiée plus tard). */
