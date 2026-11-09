@@ -12,6 +12,8 @@ type Entry = { href: string; label: string; hint: string; icon: IconName; ready:
 export default async function MorePage() {
   const session = await requireActiveSession();
   const entries: Entry[] = [
+    { href: "/catalogue", label: "Catalogue", hint: "Produits, main-d'œuvre, prestations et prix", icon: "tag", ready: true, show: can(session, "catalogue.voir") },
+    { href: "/fournisseurs", label: "Fournisseurs", hint: "Coordonnées et grilles de prix", icon: "truck", ready: true, show: can(session, "achats.gerer") },
     { href: "/equipe", label: "Mon équipe", hint: "Sous-comptes et autorisations", icon: "badge", ready: true, show: can(session, "equipe.gerer") },
     { href: "/admin", label: "Espace gestionnaire", hint: "Valider et gérer les comptes", icon: "shield", ready: true, show: session.isPlatformAdmin },
     { href: "/reglages", label: "Réglages de l'entreprise", hint: "TVA, numérotation, mise en page des documents", icon: "settings", ready: true, show: can(session, "reglages.gerer") },

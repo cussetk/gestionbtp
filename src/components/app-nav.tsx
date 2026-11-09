@@ -8,7 +8,7 @@ const ITEMS: { href: string; label: string; icon: IconName; ready: boolean; matc
   { href: "/clients", label: "Clients", icon: "users", ready: true, match: ["/clients", "/sites"] },
   { href: "/planning", label: "Planning", icon: "calendar", ready: false },
   { href: "/parc", label: "Parc", icon: "box", ready: false },
-  { href: "/plus", label: "Plus", icon: "menu", ready: true, match: ["/plus", "/equipe", "/reglages"] },
+  { href: "/plus", label: "Plus", icon: "menu", ready: true, match: ["/plus", "/equipe", "/reglages", "/catalogue", "/fournisseurs"] },
 ];
 
 export function BottomNav() {

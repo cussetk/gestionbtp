@@ -16,6 +16,8 @@ export type ShellUser = {
   isPlatformAdmin: boolean;
   canCreateClient: boolean;
   canManageTeam: boolean;
+  canCreateItem: boolean;
+  canManageSuppliers: boolean;
 };
 
 function initials(name: string) {
@@ -116,6 +118,8 @@ function CreateMenu({ user }: { user: ShellUser }) {
     { href: "#", label: "Devis", icon: "doc", ready: false, show: true },
     { href: "#", label: "Facture", icon: "receipt", ready: false, show: true },
     { href: "#", label: "Intervention", icon: "calendar", ready: false, show: true },
+    { href: "/catalogue/nouveau", label: "Article du catalogue", icon: "tag", ready: true, show: user.canCreateItem },
+    { href: "/fournisseurs/nouveau", label: "Fournisseur", icon: "truck", ready: true, show: user.canManageSuppliers },
     { href: "/equipe/inviter", label: "Membre de l'équipe", icon: "users", ready: true, show: user.canManageTeam },
   ];
   return (

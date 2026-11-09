@@ -14,6 +14,7 @@ import {
   bigint,
   boolean,
   customType,
+  jsonb,
   integer,
   check,
   doublePrecision,
@@ -322,6 +323,9 @@ export const companySettings = pgTable("company_settings", {
   template: docTemplate("template").notNull().default("moderne"),
   logoPosition: logoPosition("logo_position").notNull().default("gauche"),
   font: docFont("font").notNull().default("helvetica"),
+  // Catalogue
+  /** Coefficient de marge proposé par défaut (×1000 : 1400 = prix d'achat × 1,4). */
+  defaultCoefX1000: integer("default_coef_x1000").notNull().default(1400),
   ...syncColumns,
 });
 
@@ -361,6 +365,7 @@ export const taxRates = pgTable(
     ...syncColumns,
   },
   (t) => [
+    unique("tax_rates_org_id_uq").on(t.orgId, t.id),
     index("tax_rates_org_idx").on(t.orgId, t.position),
     check("tax_rates_rate_ck", sql`${t.rateBp} between 0 and 10000`),
   ],
@@ -394,3 +399,171 @@ export const numberSeries = pgTable(
 export type CompanySettings = typeof companySettings.$inferSelect;
 export type TaxRate = typeof taxRates.$inferSelect;
 export type NumberSeries = typeof numberSeries.$inferSelect;
+
+// ─── Lot C : fournisseurs et catalogue ─────────────────────────────────────
+
+export const suppliers = pgTable(
+  "suppliers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    contactName: text("contact_name"),
+    /** E-mail de commande (destinataire des bons de commande). */
+    email: text("email"),
+    phone: text("phone"),
+    website: text("website"),
+    addressLine1: text("address_line1"),
+    addressLine2: text("address_line2"),
+    postalCode: text("postal_code"),
+    city: text("city"),
+    country: text("country").notNull().default("FR"),
+    siret: text("siret"),
+    vatNumber: text("vat_number"),
+    /** N° de compte client chez ce fournisseur (rappelé sur les bons de commande). */
+    customerAccount: text("customer_account"),
+    paymentTermsDays: integer("payment_terms_days"),
+    notes: text("notes"),
+    searchText: text("search_text").notNull().default(""),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    ...syncColumns,
+  },
+  (t) => [
+    unique("suppliers_org_id_uq").on(t.orgId, t.id),
+    index("suppliers_org_name_idx").on(t.orgId, t.name),
+  ],
+);
+
+/** produit = bien (matériel, fourniture) ; main_oeuvre et prestation = services (nature de l'opération sur la facture). */
+export const itemKind = pgEnum("item_kind", ["produit", "main_oeuvre", "prestation"]);
+/** coef : prix de vente = prix d'achat × coefficient (suit les hausses fournisseur). fixe : prix de vente saisi. */
+export const pricingMode = pgEnum("pricing_mode", ["coef", "fixe"]);
+
+export const catalogItems = pgTable(
+  "catalog_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    kind: itemKind("kind").notNull().default("produit"),
+    /** Référence interne (facultative). */
+    reference: text("reference"),
+    /** Désignation imprimée sur les devis et factures. */
+    name: text("name").notNull(),
+    /** Description détaillée (caractéristiques, garantie…), reprise sous la désignation. */
+    description: text("description"),
+    brand: text("brand"),
+    /** Famille : « Climatiseurs muraux », « Liaisons frigorifiques »… */
+    category: text("category"),
+    unit: text("unit").notNull().default("u"),
+    /** Montants HT en centimes. */
+    purchasePriceCents: integer("purchase_price_cents"),
+    pricingMode: pricingMode("pricing_mode").notNull().default("fixe"),
+    coefX1000: integer("coef_x1000"),
+    salePriceCents: integer("sale_price_cents").notNull().default(0),
+    /** Taux de TVA de l'article ; vide = taux par défaut de l'entreprise. */
+    taxRateId: uuid("tax_rate_id"),
+    supplierId: uuid("supplier_id"),
+    /** Référence de l'article chez le fournisseur (clé de rapprochement des imports de grilles). */
+    supplierRef: text("supplier_ref"),
+    trackStock: boolean("track_stock").notNull().default(false),
+    trackSerial: boolean("track_serial").notNull().default(false),
+    notes: text("notes"),
+    searchText: text("search_text").notNull().default(""),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    ...syncColumns,
+  },
+  (t) => [
+    unique("catalog_items_org_id_uq").on(t.orgId, t.id),
+    foreignKey({
+      name: "catalog_items_supplier_fk",
+      columns: [t.orgId, t.supplierId],
+      foreignColumns: [suppliers.orgId, suppliers.id],
+    }),
+    foreignKey({
+      name: "catalog_items_tax_rate_fk",
+      columns: [t.orgId, t.taxRateId],
+      foreignColumns: [taxRates.orgId, taxRates.id],
+    }),
+    index("catalog_items_org_name_idx").on(t.orgId, t.name),
+    index("catalog_items_org_supplier_idx").on(t.orgId, t.supplierId, t.supplierRef),
+    check("catalog_items_prices_ck", sql`${t.salePriceCents} >= 0 and (${t.purchasePriceCents} is null or ${t.purchasePriceCents} >= 0)`),
+    check("catalog_items_coef_ck", sql`${t.pricingMode} = 'fixe' or (${t.coefX1000} is not null and ${t.coefX1000} > 0)`),
+  ],
+);
+
+export const priceChangeSource = pgEnum("price_change_source", ["creation", "manuel", "import"]);
+
+/** Historique des prix : une ligne à chaque changement de prix d'achat ou de vente. */
+export const itemPriceHistory = pgTable(
+  "item_price_history",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id").notNull(),
+    purchasePriceCents: integer("purchase_price_cents"),
+    salePriceCents: integer("sale_price_cents").notNull(),
+    source: priceChangeSource("source").notNull(),
+    importId: uuid("import_id"),
+    changedBy: uuid("changed_by").references(() => users.id, { onDelete: "set null" }),
+    ...syncColumns,
+  },
+  (t) => [
+    foreignKey({
+      name: "item_price_history_item_fk",
+      columns: [t.orgId, t.itemId],
+      foreignColumns: [catalogItems.orgId, catalogItems.id],
+    }).onDelete("cascade"),
+    index("item_price_history_item_idx").on(t.orgId, t.itemId, t.createdAt),
+  ],
+);
+
+export const importSource = pgEnum("import_source", ["fichier", "ia"]);
+export const importStatus = pgEnum("import_status", ["brouillon", "applique", "abandonne"]);
+
+/**
+ * Import d'une grille de prix fournisseur. Les lignes lues (fichier ou IA) restent un brouillon
+ * tant que l'utilisateur ne les a pas relues et validées : rien n'est appliqué automatiquement.
+ */
+export const catalogImports = pgTable(
+  "catalog_imports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    supplierId: uuid("supplier_id"),
+    source: importSource("source").notNull(),
+    fileName: text("file_name"),
+    /** Remarques de lecture (ex. « prix TTC », « remise de 30 % indiquée en bas de page »). */
+    notes: text("notes"),
+    status: importStatus("status").notNull().default("brouillon"),
+    /** Lignes extraites (voir src/lib/catalog-import.ts : ImportRow). */
+    rows: jsonb("rows").notNull(),
+    /** Bilan après application : créés, mis à jour, ignorés. */
+    summary: jsonb("summary"),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    appliedBy: uuid("applied_by").references(() => users.id, { onDelete: "set null" }),
+    ...syncColumns,
+  },
+  (t) => [
+    unique("catalog_imports_org_id_uq").on(t.orgId, t.id),
+    foreignKey({
+      name: "catalog_imports_supplier_fk",
+      columns: [t.orgId, t.supplierId],
+      foreignColumns: [suppliers.orgId, suppliers.id],
+    }),
+    index("catalog_imports_org_idx").on(t.orgId, t.createdAt),
+  ],
+);
+
+export type Supplier = typeof suppliers.$inferSelect;
+export type CatalogItem = typeof catalogItems.$inferSelect;
+export type ItemPriceHistory = typeof itemPriceHistory.$inferSelect;
+export type CatalogImport = typeof catalogImports.$inferSelect;

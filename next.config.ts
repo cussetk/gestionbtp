@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
     // Réseau instable sur chantier : navigations et enregistrements en attente
     // sont rejoués automatiquement au retour du réseau.
     useOffline: true,
+    // Photos et PDF des grilles fournisseurs (réduits dans le navigateur ; 4 Mo au total).
+    serverActions: { bodySizeLimit: "5mb" },
   },
   // PGlite (base de développement) ne doit pas être empaqueté.
   serverExternalPackages: ["@electric-sql/pglite"],

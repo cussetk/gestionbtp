@@ -13,6 +13,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     isPlatformAdmin: session.isPlatformAdmin,
     canCreateClient: can(session, "clients.modifier"),
     canManageTeam: can(session, "equipe.gerer"),
+    canCreateItem: can(session, "catalogue.modifier"),
+    canManageSuppliers: can(session, "achats.gerer"),
   };
   return (
     <>

@@ -8,6 +8,7 @@ import { parseCoordinates } from "./geo";
 import { isPermission } from "./permissions";
 import { isValidFrenchVatNumber, isValidIban, LEGAL_FORMS } from "./company";
 import { parseRate } from "./tax";
+import { ITEM_KINDS, UNITS, parseCoef, parseEuros, salePriceFromCoef, type ItemKind, type Unit } from "./catalog";
 
 z.config(z.locales.fr());
 
@@ -335,6 +336,142 @@ export const brandingInput = z.object({
   font: z.enum(["helvetica", "times"]),
 });
 export type BrandingInput = z.output<typeof brandingInput>;
+
+// ─── Lot C : fournisseurs et catalogue ─────────────────────────────────────
+
+const optionalUuid = z
+  .string()
+  .nullish()
+  .transform((v) => (v ? v : null))
+  .refine((v) => v === null || z.uuid().safeParse(v).success, { error: "Identifiant invalide" });
+
+export const supplierInput = z.object({
+  id: uuidField.optional().or(z.literal("").transform(() => undefined)),
+  name: requiredText("Nom du fournisseur", 150),
+  contactName: optionalText(120),
+  email: optionalEmail,
+  phone: optionalPhone,
+  website: optionalText(200),
+  addressLine1: optionalText(200),
+  addressLine2: optionalText(200),
+  postalCode: optionalPostalCode,
+  city: optionalText(100),
+  siret: optionalSiret,
+  vatNumber: optionalUpper(20),
+  customerAccount: optionalText(60),
+  paymentTermsDays: z
+    .string()
+    .trim()
+    .nullish()
+    .transform((v) => (v ? Number(v) : null))
+    .refine((v) => v === null || (Number.isInteger(v) && v >= 0 && v <= 120), { error: "Entre 0 et 120 jours" }),
+  notes: optionalText(2000),
+});
+export type SupplierInput = z.output<typeof supplierInput>;
+
+const euroField = (label: string) =>
+  z
+    .string()
+    .trim()
+    .nullish()
+    .transform((v, ctx) => {
+      if (!v) return null;
+      const cents = parseEuros(v);
+      if (cents === null) {
+        ctx.addIssue({ code: "custom", message: `${label} invalide (ex. 1250,50)` });
+        return z.NEVER;
+      }
+      return cents;
+    });
+
+const coefField = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((v, ctx) => {
+    if (!v) return null;
+    const c = parseCoef(v);
+    if (c === null) {
+      ctx.addIssue({ code: "custom", message: "Coefficient invalide (ex. 1,4)" });
+      return z.NEVER;
+    }
+    return c;
+  });
+
+const UNIT_KEYS = UNITS.map((u) => u.key) as [Unit, ...Unit[]];
+const KIND_KEYS = ITEM_KINDS.map((k) => k.key) as [ItemKind, ...ItemKind[]];
+
+export const itemInput = z
+  .object({
+    id: uuidField.optional().or(z.literal("").transform(() => undefined)),
+    kind: z.enum(KIND_KEYS, { error: "Nature invalide" }),
+    reference: optionalText(80),
+    name: requiredText("Désignation", 300),
+    description: optionalText(3000),
+    brand: optionalText(80),
+    category: optionalText(80),
+    unit: z.enum(UNIT_KEYS, { error: "Unité invalide" }),
+    purchasePrice: euroField("Prix d'achat"),
+    pricingMode: z.enum(["coef", "fixe"]).default("fixe"),
+    coef: coefField,
+    salePrice: euroField("Prix de vente"),
+    taxRateId: optionalUuid,
+    supplierId: optionalUuid,
+    supplierRef: optionalText(80),
+    trackStock: checkbox,
+    trackSerial: checkbox,
+    notes: optionalText(2000),
+  })
+  .transform(({ purchasePrice, coef, salePrice, ...rest }, ctx) => {
+    if (rest.pricingMode === "coef") {
+      if (purchasePrice === null) ctx.addIssue({ code: "custom", path: ["purchasePrice"], message: "Prix d'achat obligatoire pour calculer le prix de vente" });
+      if (coef === null) ctx.addIssue({ code: "custom", path: ["coef"], message: "Coefficient obligatoire (ex. 1,4)" });
+      if (purchasePrice === null || coef === null) return z.NEVER;
+      return { ...rest, purchasePriceCents: purchasePrice, coefX1000: coef, salePriceCents: salePriceFromCoef(purchasePrice, coef) };
+    }
+    if (salePrice === null) {
+      ctx.addIssue({ code: "custom", path: ["salePrice"], message: "Prix de vente obligatoire" });
+      return z.NEVER;
+    }
+    return { ...rest, purchasePriceCents: purchasePrice, coefX1000: null, salePriceCents: salePrice };
+  });
+export type ItemInput = z.output<typeof itemInput>;
+
+export const catalogSettingsInput = z.object({
+  defaultCoef: z
+    .string({ error: "Coefficient obligatoire" })
+    .trim()
+    .transform((v, ctx) => {
+      const c = parseCoef(v);
+      if (c === null) {
+        ctx.addIssue({ code: "custom", message: "Coefficient invalide (ex. 1,4)" });
+        return z.NEVER;
+      }
+      return c;
+    }),
+});
+
+/** Ligne d'import relue et éventuellement corrigée sur l'écran de validation. */
+export const importRowInput = z.object({
+  key: z.string().min(1).max(40),
+  action: z.enum(["creer", "maj", "ignorer"]),
+  supplierRef: z.string().trim().max(80).nullable().transform((v) => (v ? v : null)),
+  name: z.string().trim().max(300),
+  brand: z.string().trim().max(80).nullable().transform((v) => (v ? v : null)),
+  unit: z.enum(UNIT_KEYS),
+  purchasePriceCents: z.number().int().min(0).max(1_000_000_000).nullable(),
+  category: z.string().trim().max(80).nullable().transform((v) => (v ? v : null)),
+  kind: z.enum(KIND_KEYS),
+});
+export type ImportRowInput = z.output<typeof importRowInput>;
+
+export const importApplyInput = z.object({
+  importId: uuidField,
+  coefX1000: z.number().int().min(100).max(20000),
+  taxRateId: z.uuid().nullable(),
+  rows: z.array(importRowInput).max(5000),
+});
+export type ImportApplyInput = z.output<typeof importApplyInput>;
 
 /** Transforme les erreurs zod en { champ: message } pour les formulaires. */
 export function fieldErrors(error: z.ZodError): Record<string, string> {

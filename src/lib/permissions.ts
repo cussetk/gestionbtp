@@ -36,11 +36,13 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
-    label: "Achats et stock",
+    label: "Catalogue, achats et stock",
     permissions: [
-      { key: "achats.gerer", label: "Fournisseurs, bons de commande, factures d'achat", ready: false },
+      { key: "catalogue.voir", label: "Consulter le catalogue (articles et prix de vente)", ready: true },
+      { key: "catalogue.modifier", label: "Créer et modifier les articles et les prix de vente", ready: true },
+      { key: "prix.achat", label: "Voir les prix d'achat et les marges, importer les grilles fournisseurs", ready: true },
+      { key: "achats.gerer", label: "Fournisseurs, bons de commande, factures d'achat", ready: true },
       { key: "stock.gerer", label: "Gérer le stock et les numéros de série", ready: false },
-      { key: "prix.achat", label: "Voir les prix d'achat et les marges", ready: false },
       { key: "chantiers.rentabilite", label: "Voir la rentabilité des chantiers", ready: false },
     ],
   },
@@ -73,7 +75,7 @@ export const PRESETS: { key: string; label: string; permissions: Permission[] }[
   {
     key: "technicien",
     label: "Technicien",
-    permissions: ["clients.voir", "clients.modifier", "interventions.realiser", "parc.modifier", "fluides.registre"],
+    permissions: ["clients.voir", "clients.modifier", "catalogue.voir", "interventions.realiser", "parc.modifier", "fluides.registre"],
   },
   {
     key: "secretariat",
@@ -81,6 +83,8 @@ export const PRESETS: { key: string; label: string; permissions: Permission[] }[
     permissions: [
       "clients.voir",
       "clients.modifier",
+      "catalogue.voir",
+      "catalogue.modifier",
       "planning.tous",
       "devis.voir",
       "devis.modifier",
@@ -93,7 +97,7 @@ export const PRESETS: { key: string; label: string; permissions: Permission[] }[
   {
     key: "comptable",
     label: "Comptable",
-    permissions: ["clients.voir", "devis.voir", "factures.voir", "prix.achat", "chantiers.rentabilite", "compta.acces"],
+    permissions: ["clients.voir", "catalogue.voir", "devis.voir", "factures.voir", "prix.achat", "chantiers.rentabilite", "compta.acces"],
   },
   {
     key: "administrateur",

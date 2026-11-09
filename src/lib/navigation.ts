@@ -25,6 +25,7 @@ export const NAV: NavSection[] = [
       { href: "/clients", label: "Clients", icon: "users", ready: true, permission: "clients.voir", match: ["/clients", "/sites"] },
       { href: "/devis", label: "Devis", icon: "doc", ready: false, permission: "devis.voir" },
       { href: "/factures", label: "Factures", icon: "receipt", ready: false, permission: "factures.voir" },
+      { href: "/catalogue", label: "Catalogue", icon: "tag", ready: true, permission: "catalogue.voir" },
     ],
   },
   {
@@ -38,7 +39,7 @@ export const NAV: NavSection[] = [
   {
     label: "Achats",
     items: [
-      { href: "/fournisseurs", label: "Fournisseurs", icon: "truck", ready: false, permission: "achats.gerer" },
+      { href: "/fournisseurs", label: "Fournisseurs", icon: "truck", ready: true, permission: "achats.gerer" },
       { href: "/stock", label: "Stock", icon: "archive", ready: false, permission: "stock.gerer" },
     ],
   },
