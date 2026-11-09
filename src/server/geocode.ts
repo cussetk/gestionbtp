@@ -4,17 +4,42 @@
  * Ne bloque jamais l'enregistrement : en cas d'échec, la position reste vide.
  */
 import type { LatLng } from "@/lib/geo";
+import { normalizeSearch } from "@/lib/text";
 
 const ENDPOINT = "https://data.geopf.fr/geocodage/search";
-/** En dessous, le résultat est trop incertain (ex. seule la commune est reconnue). */
-const MIN_SCORE = 0.45;
+/**
+ * Score minimal du service. Il ne suffit pas seul (relevés réels en Guadeloupe, nov. 2026) :
+ *  - « 10 rue Frébault, Pointe-à-Pitre » → « Rue du Général Frébault », 0,68 : correct ;
+ *  - « 12 rue des Flamboyants, Baie-Mahault » → « Rue des Fougères », 0,58 : faux.
+ * D'où la vérification complémentaire du nom de la voie (sameStreet).
+ */
+const MIN_SCORE = 0.5;
+/** Types acceptés : numéro, voie ou lieu-dit. Une commune seule est trop imprécise. */
+const ACCEPTED_TYPES = new Set(["housenumber", "street", "locality"]);
 
 export type GeocodeResult = LatLng & { score: number; label: string };
 
 type Feature = {
   geometry?: { coordinates?: [number, number] };
-  properties?: { score?: number; label?: string; postcode?: string };
+  properties?: { score?: number; label?: string; postcode?: string; type?: string; street?: string; name?: string };
 };
+
+/** Mots significatifs d'un nom de voie (sans « rue », « de », accents…). */
+function streetWords(value: string): string[] {
+  const stop = new Set(["rue", "avenue", "av", "bd", "boulevard", "chemin", "route", "rte", "allee", "impasse", "place", "lotissement", "lot", "residence", "res", "cite", "de", "des", "du", "la", "le", "les", "l", "d", "et"]);
+  return normalizeSearch(value)
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(" ")
+    .filter((w) => w.length > 2 && !stop.has(w) && !/^\d/.test(w));
+}
+
+/** Au moins un mot significatif de la voie saisie se retrouve dans le résultat. */
+function sameStreet(input: string, found: string | undefined): boolean {
+  const wanted = streetWords(input);
+  if (wanted.length === 0 || !found) return true;
+  const got = new Set(streetWords(found));
+  return wanted.some((w) => got.has(w));
+}
 
 export async function geocodeAddress(address: {
   addressLine1: string;
@@ -34,7 +59,10 @@ export async function geocodeAddress(address: {
     const coords = f?.geometry?.coordinates;
     const score = f?.properties?.score ?? 0;
     if (!coords || coords.length < 2 || score < MIN_SCORE) return null;
-    if (f?.properties?.postcode && f.properties.postcode !== address.postalCode) return null;
+    const props = f?.properties ?? {};
+    if (props.type && !ACCEPTED_TYPES.has(props.type)) return null;
+    if (props.postcode && props.postcode !== address.postalCode) return null;
+    if (!sameStreet(address.addressLine1, props.street ?? props.name ?? props.label)) return null;
     // GeoJSON : [longitude, latitude]
     const [lng, lat] = coords;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;

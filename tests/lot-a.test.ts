@@ -96,7 +96,7 @@ describe("géocodage depuis l'adresse", () => {
       new Response(
         JSON.stringify({
           type: "FeatureCollection",
-          features: [{ geometry: { type: "Point", coordinates: [-61.5935, 16.2668] }, properties: { score: 0.91, label: "12 Rue des Flamboyants 97122 Baie-Mahault", postcode: "97122" } }],
+          features: [{ geometry: { type: "Point", coordinates: [-61.5935, 16.2668] }, properties: { score: 0.91, type: "housenumber", street: "Rue des Flamboyants", label: "12 Rue des Flamboyants 97122 Baie-Mahault", postcode: "97122" } }],
         }),
       ),
     );
@@ -108,11 +108,34 @@ describe("géocodage depuis l'adresse", () => {
     expect(url.searchParams.get("postcode")).toBe("97122");
   });
 
+  it("refuse une mauvaise rue proposée par le service (cas réel Baie-Mahault)", async () => {
+    vi.stubEnv("GEOCODING_DISABLED", "0");
+    const answer = (props: Record<string, unknown>) =>
+      new Response(JSON.stringify({ features: [{ geometry: { coordinates: [-61.5936, 16.2539] }, properties: { postcode: "97122", ...props } }] }));
+    const addr = { addressLine1: "12 rue des Flamboyants", postalCode: "97122", city: "Baie-Mahault" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(answer({ score: 0.58, type: "housenumber", street: "Rue des Fougères" })));
+    expect(await geocodeAddress(addr)).toBeNull();
+    // Même avec un bon score, une autre rue est refusée.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(answer({ score: 0.9, type: "housenumber", street: "Rue des Fougères" })));
+    expect(await geocodeAddress(addr)).toBeNull();
+    // Commune seule : trop imprécis.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(answer({ score: 0.95, type: "municipality", name: "Baie-Mahault" })));
+    expect(await geocodeAddress(addr)).toBeNull();
+    // Nom officiel plus long, score moyen : accepté (cas réel Pointe-à-Pitre).
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ features: [{ geometry: { coordinates: [-61.53, 16.24] }, properties: { postcode: "97110", score: 0.68, type: "housenumber", street: "Rue du General Frebault" } }] })),
+    ));
+    expect(await geocodeAddress({ addressLine1: "10 rue Frébault", postalCode: "97110", city: "Pointe-à-Pitre" })).toMatchObject({ lat: 16.24 });
+    // Bonne rue, accents et majuscules différents : accepté.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(answer({ score: 0.88, type: "street", street: "Rue des FLAMBOYANTS" })));
+    expect(await geocodeAddress(addr)).toMatchObject({ lat: 16.2539 });
+  });
+
   it("ignore un résultat peu sûr, d'un autre code postal, ou une panne", async () => {
     vi.stubEnv("GEOCODING_DISABLED", "0");
     const answer = (score: number, postcode: string) =>
       new Response(JSON.stringify({ features: [{ geometry: { coordinates: [-61.5, 16.2] }, properties: { score, postcode } }] }));
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(answer(0.2, "97122")));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(answer(0.3, "97122")));
     expect(await geocodeAddress({ addressLine1: "rue inconnue", postalCode: "97122", city: "Baie-Mahault" })).toBeNull();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(answer(0.9, "97100")));
     expect(await geocodeAddress({ addressLine1: "1 rue", postalCode: "97122", city: "Baie-Mahault" })).toBeNull();
