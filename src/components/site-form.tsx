@@ -49,7 +49,7 @@ export function SiteForm({ mode, initial }: { mode: "create" | "update"; initial
   const parsed = parseCoordinates(coords);
 
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form action={action} className="space-y-4 lg:max-w-2xl" noValidate>
       <input type="hidden" name="mode" value={mode} />
       <input type="hidden" name="id" value={val("id")} />
       <input type="hidden" name="clientId" value={val("clientId")} />
@@ -76,7 +76,7 @@ export function SiteForm({ mode, initial }: { mode: "create" | "update"; initial
       </div>
 
       <div className="space-y-3 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <p className="text-sm font-semibold text-slate-700">Position du site</p>
+        <p className="text-sm font-bold text-slate-700">Position du site</p>
         <button type="button" onClick={locate} disabled={locating} className={cx(buttonStyles.secondary, "w-full")}>
           <Icon name="locate" />
           {locating ? "Recherche…" : "Je suis sur place : relever ma position"}

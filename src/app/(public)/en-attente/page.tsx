@@ -15,7 +15,7 @@ export default async function PendingPage() {
       <div className={`mx-auto mb-3 grid size-12 place-items-center rounded-full ${suspended ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
         <Icon name={suspended ? "ban" : "clock"} className="size-7" />
       </div>
-      <h1 className="mb-2 text-lg font-semibold">{suspended ? "Espace suspendu" : "Espace en cours de validation"}</h1>
+      <h1 className="mb-2 text-lg font-bold">{suspended ? "Espace suspendu" : "Espace en cours de validation"}</h1>
       {suspended ? (
         <>
           <p className="text-sm text-slate-600">L&apos;accès à l&apos;espace « {session.orgName} » est suspendu.</p>

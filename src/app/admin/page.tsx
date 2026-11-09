@@ -52,7 +52,7 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
             key={t.key}
             href={`/admin?statut=${t.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
             className={cx(
-              "flex min-h-10 flex-1 items-center justify-center whitespace-nowrap rounded-lg px-3 text-sm font-semibold",
+              "flex min-h-10 flex-1 items-center justify-center whitespace-nowrap rounded-lg px-3 text-sm font-bold",
               tab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-600",
             )}
           >

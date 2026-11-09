@@ -9,7 +9,7 @@ export default async function SignInPage() {
   if (await currentSession()) redirect("/");
   return (
     <>
-      <h1 className="mb-4 text-lg font-semibold">Connexion</h1>
+      <h1 className="mb-4 text-lg font-bold">Connexion</h1>
       <SignInForm />
     </>
   );

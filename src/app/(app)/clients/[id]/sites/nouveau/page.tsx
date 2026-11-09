@@ -17,9 +17,9 @@ export default async function NewSitePage({ params }: PageProps<"/clients/[id]/s
       ? { addressLine1: client.addressLine1, addressLine2: client.addressLine2, postalCode: client.postalCode, city: client.city }
       : {};
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader title="Nouveau site" subtitle={client.displayName} back={`/clients/${client.id}`} />
       <SiteForm mode="create" initial={{ id: crypto.randomUUID(), clientId: client.id, ...prefill }} />
-    </>
+    </div>
   );
 }

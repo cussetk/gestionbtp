@@ -7,8 +7,17 @@
   --color-brand-600: #0b74a8;
   --color-brand-700: #0a5d88;
   --color-brand-900: #0b3550;
-  --color-ink: #0f1d2b;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-ink: #13202b;
+  /* Bleu glacier profond du menu latéral */
+  --color-glacier-950: #0c2433;
+  --color-glacier-900: #11303f;
+  --color-glacier-800: #1a3f51;
+  --color-glacier-300: #9fbccb;
+  /* Cuivre des liaisons frigorifiques : uniquement pour signaler la rubrique active */
+  --color-copper-500: #c07a3f;
+  --color-copper-300: #e2b48a;
+  --color-surface: #f2f5f7;
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 html {
@@ -16,8 +25,21 @@ html {
 }
 
 body {
-  background: #f3f6f9;
+  background: var(--color-surface);
   color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 @layer components {

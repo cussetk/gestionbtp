@@ -21,7 +21,7 @@ export function SignInForm() {
       <SubmitButton className="w-full" pendingLabel="Connexion…">Se connecter</SubmitButton>
       <p className="text-center text-sm text-slate-600">
         Pas encore de compte ?{" "}
-        <Link href="/inscription" className="font-semibold text-brand-700 underline">
+        <Link href="/inscription" className="font-bold text-brand-700 underline">
           Créer mon espace
         </Link>
       </p>
@@ -75,7 +75,7 @@ export function SignUpForm() {
       </p>
       <p className="text-center text-sm text-slate-600">
         Déjà un compte ?{" "}
-        <Link href="/connexion" className="font-semibold text-brand-700 underline">
+        <Link href="/connexion" className="font-bold text-brand-700 underline">
           Se connecter
         </Link>
       </p>

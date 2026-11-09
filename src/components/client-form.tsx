@@ -15,7 +15,7 @@ export function ClientForm({ mode, initial }: { mode: "create" | "update"; initi
   const val = (k: string) => v[k] ?? "";
 
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form action={action} className="space-y-4 lg:max-w-2xl" noValidate>
       <input type="hidden" name="mode" value={mode} />
       <input type="hidden" name="id" value={val("id")} />
       {/* Le type est porté par un champ caché : la remise à zéro automatique du formulaire
@@ -33,7 +33,7 @@ export function ClientForm({ mode, initial }: { mode: "create" | "update"; initi
             <label
               key={value}
               className={cx(
-                "flex min-h-11 cursor-pointer items-center justify-center rounded-lg text-sm font-semibold",
+                "flex min-h-11 cursor-pointer items-center justify-center rounded-lg text-sm font-bold",
                 type === value ? "bg-white text-brand-700 shadow-sm" : "text-slate-600",
               )}
             >
@@ -82,7 +82,7 @@ export function ClientForm({ mode, initial }: { mode: "create" | "update"; initi
       </Field>
 
       <div className="space-y-4 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
-        <p className="text-sm font-semibold text-slate-700">Adresse de facturation</p>
+        <p className="text-sm font-bold text-slate-700">Adresse de facturation</p>
         <Field label="Adresse" name="addressLine1" error={e.addressLine1}>
           <TextInput name="addressLine1" autoComplete="address-line1" defaultValue={val("addressLine1")} error={e.addressLine1} />
         </Field>

@@ -11,19 +11,19 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   return (
     <>
       <header className="sticky top-0 z-30 bg-slate-900 text-white shadow" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-        <div className="mx-auto flex h-14 max-w-3xl items-center gap-3 px-4">
+        <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
           <Icon name="shield" />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold leading-tight">Gestionnaire</p>
+            <p className="truncate font-bold leading-tight">Gestionnaire</p>
             <p className="truncate text-xs text-white/70">{session.fullName}</p>
           </div>
-          <Link href="/" className="rounded-full px-3 py-2 text-sm font-semibold text-white/90 active:bg-white/15">
+          <Link href="/" className="rounded-full px-3 py-2 text-sm font-bold text-white/90 active:bg-white/15">
             Mon espace
           </Link>
           <SignOutButton />
         </div>
       </header>
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-16 pt-4">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-16 pt-4">{children}</main>
     </>
   );
 }

@@ -16,8 +16,13 @@ export default async function TeamPage() {
   const tz = session.orgTimezone;
 
   return (
-    <>
-      <PageHeader title="Mon équipe" subtitle={`${members.filter((m) => m.active).length} compte(s) actif(s)`} back="/plus" />
+    <div className="lg:max-w-3xl">
+      <PageHeader
+        title="Mon équipe"
+        subtitle={`${members.filter((m) => m.active).length} compte(s) actif(s)`}
+        back="/plus"
+        primary={{ href: "/equipe/inviter", label: "Inviter un membre" }}
+      />
 
       <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
         {members.map((m) => {
@@ -86,6 +91,6 @@ export default async function TeamPage() {
       )}
 
       <Fab href="/equipe/inviter" label="Inviter" />
-    </>
+    </div>
   );
 }

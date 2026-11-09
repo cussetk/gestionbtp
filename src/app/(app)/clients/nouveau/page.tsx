@@ -10,9 +10,9 @@ export default async function NewClientPage() {
   // Identifiant créé dès l'ouverture du formulaire : un double envoi ne crée pas de doublon.
   const id = crypto.randomUUID();
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader title="Nouveau client" back="/clients" />
       <ClientForm mode="create" initial={{ id, type: "particulier" }} />
-    </>
+    </div>
   );
 }

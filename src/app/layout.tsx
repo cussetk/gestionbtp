@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { APP_NAME, APP_TAGLINE } from "@/lib/config";
 import { OfflineBanner } from "@/components/offline-banner";
 import { ServiceWorker } from "@/components/service-worker";
+import "@fontsource/atkinson-hyperlegible/400.css";
+import "@fontsource/atkinson-hyperlegible/700.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b74a8",
+  themeColor: "#0c2433",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

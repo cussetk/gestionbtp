@@ -12,7 +12,7 @@ export default async function EditSitePage({ params }: PageProps<"/sites/[id]/mo
   const { id } = await params;
   const { site, client } = await loadOr404(id, () => getSite(toCtx(session), id));
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader title="Modifier le site" subtitle={client.displayName} back={`/sites/${site.id}`} />
       <SiteForm
         mode="update"
@@ -34,6 +34,6 @@ export default async function EditSitePage({ params }: PageProps<"/sites/[id]/mo
           notes: site.notes,
         }}
       />
-    </>
+    </div>
   );
 }

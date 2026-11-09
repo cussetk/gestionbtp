@@ -94,7 +94,7 @@ export default async function AdminOrgPage({ params }: PageProps<"/admin/[orgId]
             {events.map((ev) => (
               <li key={ev.id} className="border-l-2 border-slate-200 pl-3 text-sm">
                 <p>
-                  <span className="font-semibold capitalize">{ev.action}</span>
+                  <span className="font-bold capitalize">{ev.action}</span>
                   {ev.detail && <span className="text-slate-700"> — {ev.detail}</span>}
                 </p>
                 <p className="text-xs text-slate-400">

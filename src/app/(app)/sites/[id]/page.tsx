@@ -32,7 +32,7 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
   const address = [site.addressLine1, site.addressLine2, `${site.postalCode} ${site.city}`].filter(Boolean).join(", ");
 
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader
         back={`/clients/${client.id}`}
         title={site.label}
@@ -60,7 +60,7 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
           href={wazeUrl(site)}
           target="_blank"
           rel="noopener noreferrer"
-          className="ml-[3.25rem] inline-flex min-h-10 items-center text-sm font-semibold text-brand-700"
+          className="ml-[3.25rem] inline-flex min-h-10 items-center text-sm font-bold text-brand-700"
         >
           Ouvrir dans Waze
         </a>
@@ -87,7 +87,7 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
 
       {site.accessNotes && (
         <Card className="mt-3 border-l-4 border-amber-400">
-          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-amber-800">
+          <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-amber-800">
             <Icon name="key" className="size-4" /> Accès
           </p>
           <p className="whitespace-pre-wrap text-sm">{site.accessNotes}</p>
@@ -125,6 +125,6 @@ export default async function SitePage({ params }: PageProps<"/sites/[id]">) {
           </SubmitButton>
         </form>}
       </div>
-    </>
+    </div>
   );
 }

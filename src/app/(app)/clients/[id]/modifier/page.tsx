@@ -12,7 +12,7 @@ export default async function EditClientPage({ params }: PageProps<"/clients/[id
   const { id } = await params;
   const { client } = await loadOr404(id, () => getClient(toCtx(session), id));
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader title="Modifier le client" subtitle={client.displayName} back={`/clients/${client.id}`} />
       <ClientForm
         mode="update"
@@ -33,6 +33,6 @@ export default async function EditClientPage({ params }: PageProps<"/clients/[id
           notes: client.notes,
         }}
       />
-    </>
+    </div>
   );
 }

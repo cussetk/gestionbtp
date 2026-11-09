@@ -8,14 +8,14 @@ const ITEMS: { href: string; label: string; icon: IconName; ready: boolean; matc
   { href: "/clients", label: "Clients", icon: "users", ready: true, match: ["/clients", "/sites"] },
   { href: "/planning", label: "Planning", icon: "calendar", ready: false },
   { href: "/parc", label: "Parc", icon: "box", ready: false },
-  { href: "/plus", label: "Plus", icon: "menu", ready: true, match: ["/plus", "/equipe"] },
+  { href: "/plus", label: "Plus", icon: "menu", ready: true, match: ["/plus", "/equipe", "/reglages"] },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="mx-auto grid max-w-2xl grid-cols-4">
@@ -25,7 +25,7 @@ export function BottomNav() {
             <>
               <Icon name={item.icon} className="size-6" />
               <span className="text-[11px] font-medium">{item.label}</span>
-              {!item.ready && <span className="text-[9px] uppercase tracking-wide text-slate-400">bientôt</span>}
+              {!item.ready && <span className="text-[10px] text-slate-400">bientôt</span>}
             </>
           );
           return (

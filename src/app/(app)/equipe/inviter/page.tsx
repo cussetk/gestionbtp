@@ -8,9 +8,9 @@ export const metadata: Metadata = { title: "Inviter un membre" };
 export default async function InvitePage() {
   const session = await requirePermission("equipe.gerer");
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader title="Inviter un membre" subtitle="Il recevra un lien pour créer son accès" back="/equipe" />
       <InviteForm grantable={session.permissions} orgName={session.orgName} />
-    </>
+    </div>
   );
 }

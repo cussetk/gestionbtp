@@ -8,5 +8,5 @@ const STYLES = {
 
 export function StatusBadge({ status }: { status: keyof typeof STYLES }) {
   const [label, style] = STYLES[status];
-  return <span className={cx("inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold", style)}>{label}</span>;
+  return <span className={cx("inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold", style)}>{label}</span>;
 }

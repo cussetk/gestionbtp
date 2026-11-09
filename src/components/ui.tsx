@@ -35,6 +35,13 @@ const paths = {
   check: "M5 12.5l4.5 4.5L19 7",
   clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
   ban: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 5.6l12.8 12.8",
+  doc: "M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6",
+  receipt: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6",
+  truck: "M3 6h11v10H3zM14 9h4l3 3v4h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
+  home: "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
+  badge: "M4 6h16v13H4zM9 3h6v3H9zM9 11a2 2 0 1 0 4 0 2 2 0 0 0-4 0M7 17c.6-1.8 2-2.5 4-2.5s3.4.7 4 2.5",
 } as const;
 
 export type IconName = keyof typeof paths;
@@ -63,28 +70,38 @@ export function PageHeader({
   subtitle,
   back,
   action,
+  primary,
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   back?: string;
   action?: ReactNode;
+  /** Action principale de la page, affichée en bouton sur ordinateur (sur téléphone : bouton flottant). */
+  primary?: { href: string; label: string };
 }) {
   return (
-    <div className="mb-4 flex items-start gap-2">
+    <div className="mb-4 flex items-start gap-2 lg:mb-6">
       {back && (
         <Link
           href={back}
           aria-label="Retour"
-          className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full text-slate-600 active:bg-slate-200"
+          className="-ml-2 grid size-11 shrink-0 place-items-center rounded-full text-slate-600 hover:bg-slate-200/60 active:bg-slate-200"
         >
           <Icon name="back" className="size-6" />
         </Link>
       )}
       <div className="min-w-0 flex-1 pt-1.5">
-        <h1 className="text-xl font-semibold leading-tight break-words">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="text-xl font-bold leading-tight break-words lg:text-[26px]">{title}</h1>
+        {subtitle && <div className="mt-0.5 text-sm text-slate-500 lg:text-[15px]">{subtitle}</div>}
       </div>
       {action}
+      {primary && (
+        <span className="hidden lg:block">
+          <Link href={primary.href} className={buttonStyles.primary}>
+            <Icon name="plus" className="size-5" /> {primary.label}
+          </Link>
+        </span>
+      )}
     </div>
   );
 }
@@ -96,7 +113,7 @@ export function Card({ children, className }: { children: ReactNode; className?:
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-2 mt-6 flex items-center justify-between px-1">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{children}</h2>
+      <h2 className="text-[15px] font-bold text-slate-700">{children}</h2>
       {action}
     </div>
   );
@@ -114,7 +131,7 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
 // ─── Boutons et liens ───────────────────────────────────────────────────────
 
 const buttonBase =
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-base font-semibold transition active:scale-[0.98] disabled:opacity-60";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-base font-bold transition active:scale-[0.98] disabled:opacity-60";
 export const buttonStyles = {
   primary: cx(buttonBase, "bg-brand-600 text-white shadow-sm active:bg-brand-700"),
   secondary: cx(buttonBase, "bg-white text-ink ring-1 ring-slate-300 active:bg-slate-100"),
@@ -136,7 +153,7 @@ export function Fab({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="fixed right-4 z-30 flex h-14 items-center gap-2 rounded-full bg-brand-600 pl-4 pr-5 font-semibold text-white shadow-lg shadow-brand-900/25 active:bg-brand-700"
+      className="fixed right-4 z-30 flex h-14 items-center gap-2 rounded-full bg-brand-600 pl-4 pr-5 font-bold text-white shadow-lg shadow-brand-900/25 active:bg-brand-700 lg:hidden"
       style={{ bottom: "calc(5.25rem + env(safe-area-inset-bottom))" }}
     >
       <Icon name="plus" className="size-6" />

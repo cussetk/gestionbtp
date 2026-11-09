@@ -33,7 +33,7 @@ export function PermissionPicker({ initial, grantable }: { initial: readonly str
             key={p.key}
             type="button"
             onClick={() => applyPreset(p.permissions)}
-            className="min-h-10 rounded-full bg-brand-50 px-3 text-sm font-semibold text-brand-700 ring-1 ring-brand-100 active:bg-brand-100"
+            className="min-h-10 rounded-full bg-brand-50 px-3 text-sm font-bold text-brand-700 ring-1 ring-brand-100 active:bg-brand-100"
           >
             {p.label}
           </button>
@@ -41,7 +41,7 @@ export function PermissionPicker({ initial, grantable }: { initial: readonly str
       </div>
       {PERMISSION_GROUPS.map((group) => (
         <div key={group.label} className="rounded-2xl bg-white ring-1 ring-slate-200">
-          <p className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="border-b border-slate-100 px-3 py-2 text-sm font-bold text-slate-600">
             {group.label}
           </p>
           <ul>

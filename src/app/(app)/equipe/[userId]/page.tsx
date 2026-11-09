@@ -20,7 +20,7 @@ export default async function MemberPage({ params }: PageProps<"/equipe/[userId]
   if (member.role === "proprietaire") redirect("/equipe");
 
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader
         title={member.fullName}
         subtitle={`${member.title ?? "Membre"}${member.active ? "" : " · désactivé"}`}
@@ -58,6 +58,6 @@ export default async function MemberPage({ params }: PageProps<"/equipe/[userId]
           </SubmitButton>
         )}
       </form>
-    </>
+    </div>
   );
 }

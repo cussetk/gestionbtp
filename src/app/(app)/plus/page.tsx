@@ -12,13 +12,13 @@ type Entry = { href: string; label: string; hint: string; icon: IconName; ready:
 export default async function MorePage() {
   const session = await requireActiveSession();
   const entries: Entry[] = [
-    { href: "/equipe", label: "Mon équipe", hint: "Sous-comptes et autorisations", icon: "users", ready: true, show: can(session, "equipe.gerer") },
+    { href: "/equipe", label: "Mon équipe", hint: "Sous-comptes et autorisations", icon: "badge", ready: true, show: can(session, "equipe.gerer") },
     { href: "/admin", label: "Espace gestionnaire", hint: "Valider et gérer les comptes", icon: "shield", ready: true, show: session.isPlatformAdmin },
     { href: "#", label: "Réglages de l'entreprise", hint: "TVA, numérotation, mise en page des documents", icon: "building", ready: false, show: can(session, "reglages.gerer") },
     { href: "#", label: "Fluides frigorigènes", hint: "Registre et bouteilles", icon: "drop", ready: false, show: true },
   ];
   return (
-    <>
+    <div className="lg:max-w-3xl">
       <PageHeader title="Plus" subtitle={session.orgName} />
       <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70">
         {entries
@@ -53,6 +53,6 @@ export default async function MorePage() {
         <span className="text-sm">Se déconnecter</span>
         <SignOutButton />
       </div>
-    </>
+    </div>
   );
 }
